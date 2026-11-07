@@ -82,6 +82,15 @@ export class AuditService {
   }
 
   /**
+   * SECURITY audit for an event that accompanies a mutation (session revoked, refresh token
+   * rotated): written with the **transaction client** of that mutation, so the change and its
+   * audit row commit or roll back together, exactly like `record`.
+   */
+  async recordSecurityIn(db: AuditDb, event: AuditEvent): Promise<void> {
+    await db.auditLog.create({ data: this.toData(event, AuditCategory.SECURITY) });
+  }
+
+  /**
    * SECURITY audit (failed login, refresh reuse, lockout, ...): there is no business
    * transaction, so it is written on its own. It is awaited, but a failure to write is logged at
    * error level and never turns a legitimate request into an error.

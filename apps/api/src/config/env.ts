@@ -24,6 +24,9 @@ export const envSchema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters (openssl rand -base64 48)'),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
   SESSION_ABSOLUTE_TTL_SECONDS: z.coerce.number().int().min(900).max(7_776_000).default(2_592_000),
+  // A refresh token is replaced on every use, so this is also the idle timeout: a user who does not
+  // return within this time must sign in again. Never longer than the session's absolute lifetime.
+  REFRESH_TOKEN_TTL_SECONDS: z.coerce.number().int().min(900).max(7_776_000).default(604_800),
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   SWAGGER_ENABLED: z
     .enum(['true', 'false'])
