@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+/* Autonova brand tokens (docs/webdesign.md §3.2). Navy for structure, blue for actions. */
+@theme {
+  --color-navy: #142b4a;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4fd8;
+  --color-electric: #3b82f6;
+  --color-cyan: #06b6d4;
+  --color-canvas: #f7f9fc;
+  --color-surface: #ffffff;
+  --color-line: #e2e8f0;
+  --color-ink: #172b4d;
+  --color-ink-soft: #64748b;
+  --color-ink-muted: #94a3b8;
+  --color-danger: #b42318;
+  --color-danger-soft: #fef3f2;
+  --color-success: #067647;
+  --color-success-soft: #ecfdf3;
+  --color-warning: #b54708;
+  --color-warning-soft: #fffaeb;
+}
+
+body {
+  @apply bg-canvas text-ink text-sm antialiased;
+}
+
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-primary;
+}
