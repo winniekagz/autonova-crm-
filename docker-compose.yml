@@ -1,0 +1,58 @@
+# Local development stack. `postgres` is the only service needed for day-to-day work
+# (apps run on the host with hot reload). The `app` profile builds and runs the
+# api and web images to verify the container builds: `docker compose --profile app up --build`.
+name: autonova
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set in .env}
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5433}:5432'
+    volumes:
+      - autonova_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    profiles: ['app']
+    build:
+      context: .
+      dockerfile: infrastructure/docker/api.Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      API_PORT: 4000
+      API_LOG_LEVEL: info
+      DATABASE_URL: postgresql://autonova_app:${APP_DB_PASSWORD:?set in .env}@postgres:5432/${POSTGRES_DB}?schema=public
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set in .env}
+      # This Compose file is for local development and stakeholder review. Production deployments
+      # should use their own setting and keep Swagger disabled unless it is intentionally public.
+      SWAGGER_ENABLED: 'true'
+    ports:
+      - '127.0.0.1:${API_PORT:-4000}:4000'
+
+  web:
+    profiles: ['app']
+    build:
+      context: .
+      dockerfile: infrastructure/docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4000}
+    depends_on:
+      - api
+    ports:
+      - '127.0.0.1:${WEB_PORT:-3000}:3000'
+
+volumes:
+  autonova_pgdata:
