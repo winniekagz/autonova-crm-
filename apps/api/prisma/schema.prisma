@@ -1,0 +1,153 @@
+// Autonova CRM — foundation schema (Phase 0).
+//
+// Only identity, access control and audit tables exist so far. Business tables
+// (companies, leads, ToR, invoices, ...) arrive with the flow that needs them.
+// The full target model is documented in docs/04-database-design.md.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+enum AuditCategory {
+  /// Business mutation, written in the same transaction as the change it describes.
+  BUSINESS
+  /// Authentication/security event (failed login, token reuse, ...), written on its own.
+  SECURITY
+}
+
+/// A person who can sign in. Users are never hard-deleted: they are referenced by
+/// audit events and (later) by leads, ToRs and payments. Use status = DISABLED instead.
+model User {
+  id           String     @id @default(uuid(7)) @db.Uuid
+  email        String     @unique
+  fullName     String     @map("full_name")
+  passwordHash String?    @map("password_hash")
+  status       UserStatus @default(INVITED)
+  lastLoginAt  DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  roles     UserRole[]
+  auditLogs AuditLog[]
+  sessions  Session[]
+
+  @@map("users")
+}
+
+/// One sign-in on one device. Access tokens carry its id (`sid`); the API checks on EVERY request
+/// that the session is neither revoked nor expired, so revocation takes effect immediately.
+model Session {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// Absolute lifetime; idle timeout is an open decision (docs/06, S6).
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revokedReason String?   @map("revoked_reason")
+  /// Set when the second factor was verified for this session. A user whose roles require MFA
+  /// (Directors) has a *restricted* session until this is set (docs/06 "Director MFA").
+  mfaVerifiedAt DateTime? @map("mfa_verified_at") @db.Timestamptz(3)
+  ip            String?
+  userAgent     String?   @map("user_agent")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  /// "Active sessions of a user" (session list, revoke-all on disable/password change).
+  @@index([userId, revokedAt])
+  @@map("sessions")
+}
+
+/// Roles are data, not code, so permissions are never tied to individual people.
+model Role {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  key         String   @unique
+  name        String
+  description String?
+  /// System roles are seeded and cannot be deleted or have their key changed.
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+/// A single capability, e.g. `users:manage`. Keys follow `<resource>:<action>`.
+model Permission {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  key         String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+/// Many-to-many: a role grants many permissions, a permission belongs to many roles.
+model RolePermission {
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+/// Many-to-many: one person can hold several roles (e.g. Director + Technical Lead).
+model UserRole {
+  userId    String   @map("user_id") @db.Uuid
+  roleId    String   @map("role_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+/// Append-only record of important business actions (PRD 2.2, 8.5).
+/// UPDATE and DELETE are rejected by a database trigger (see the init migration).
+/// old_values / new_values are JSON snapshots: they are document-like, vary by entity
+/// and are never queried relationally.
+model AuditLog {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  occurredAt  DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  /// Null only for system-initiated actions (jobs, seed).
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  category    AuditCategory @default(BUSINESS)
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id")
+  oldValues   Json?    @map("old_values")
+  newValues   Json?    @map("new_values")
+  reason      String?
+  requestId   String?  @map("request_id")
+
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([entityType, entityId, occurredAt(sort: Desc)])
+  @@index([actorUserId, occurredAt(sort: Desc)])
+  @@index([occurredAt(sort: Desc)])
+  @@index([category, occurredAt(sort: Desc)])
+  @@map("audit_logs")
+}
