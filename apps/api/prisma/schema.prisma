@@ -61,11 +61,37 @@ model Session {
   ip            String?
   userAgent     String?   @map("user_agent")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  refreshTokens RefreshToken[]
 
   /// "Active sessions of a user" (session list, revoke-all on disable/password change).
   @@index([userId, revokedAt])
   @@map("sessions")
+}
+
+/// One refresh token issued for a session. A session IS the token family: every rotation of a
+/// session's refresh token adds a row here, so revoking the session (sessions.revoked_at) revokes
+/// all of its tokens and no separate family id or per-token revocation flag exists.
+///
+/// Only the SHA-256 of the opaque token is stored; the raw value exists in the HttpOnly cookie only.
+/// Rotation consumes a token with a conditional UPDATE (used_at IS NULL), so exactly one concurrent
+/// request wins; presenting an already-used token is replay and revokes the session.
+/// The migration adds, by hand, a partial unique index (one unused token per session) and CHECKs.
+model RefreshToken {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  sessionId String    @map("session_id") @db.Uuid
+  /// Lower-case hex SHA-256 of the raw token. Lookup key; UNIQUE so a hash can never match two rows.
+  tokenHash String    @unique @map("token_hash")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  /// Never later than the session's own expiry.
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  /// Set exactly once, by the rotation that consumed this token. Non-null means "already used".
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  @@index([sessionId])
+  @@map("refresh_tokens")
 }
 
 /// Roles are data, not code, so permissions are never tied to individual people.
@@ -130,18 +156,18 @@ model UserRole {
 /// old_values / new_values are JSON snapshots: they are document-like, vary by entity
 /// and are never queried relationally.
 model AuditLog {
-  id          String   @id @default(uuid(7)) @db.Uuid
-  occurredAt  DateTime @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  id          String        @id @default(uuid(7)) @db.Uuid
+  occurredAt  DateTime      @default(now()) @map("occurred_at") @db.Timestamptz(3)
   /// Null only for system-initiated actions (jobs, seed).
-  actorUserId String?  @map("actor_user_id") @db.Uuid
+  actorUserId String?       @map("actor_user_id") @db.Uuid
   category    AuditCategory @default(BUSINESS)
   action      String
-  entityType  String   @map("entity_type")
-  entityId    String   @map("entity_id")
-  oldValues   Json?    @map("old_values")
-  newValues   Json?    @map("new_values")
+  entityType  String        @map("entity_type")
+  entityId    String        @map("entity_id")
+  oldValues   Json?         @map("old_values")
+  newValues   Json?         @map("new_values")
   reason      String?
-  requestId   String?  @map("request_id")
+  requestId   String?       @map("request_id")
 
   actor User? @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
 
