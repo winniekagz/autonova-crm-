@@ -2,7 +2,7 @@
 
 import { emailSchema } from '@autonova/validation';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
 import { ApiError } from '@/lib/api-client';
@@ -21,8 +21,12 @@ function messageFor(error: unknown): string {
 }
 
 export function LoginForm() {
-  const { signIn } = useAuth();
+  const { signIn, status } = useAuth();
   const router = useRouter();
+  // A reload on /login with a still-valid session goes straight in instead of asking for a password.
+  useEffect(() => {
+    if (status === 'authenticated') router.replace('/');
+  }, [status, router]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});

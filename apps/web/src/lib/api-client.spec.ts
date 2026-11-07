@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { ApiError, toApiError } from './api-client';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ApiError, apiRequest, toApiError } from './api-client';
 
 const response = (status: number, body: unknown) =>
   new Response(typeof body === 'string' ? body : JSON.stringify(body), { status });
@@ -27,5 +27,33 @@ describe('toApiError', () => {
 
   it('survives JSON that is not the envelope', async () => {
     expect(await toApiError(response(500, { oops: true }))).toMatchObject({ code: 'HTTP_ERROR' });
+  });
+});
+
+describe('cookie credentials and CSRF header', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const capture = () => {
+    const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  };
+  const lastInit = (fetchMock: ReturnType<typeof capture>) =>
+    (fetchMock.mock.calls.at(-1) as unknown as [string, RequestInit])[1];
+
+  it('ordinary requests send no cookies and no CSRF header', async () => {
+    const fetchMock = capture();
+    await apiRequest('/users', (j) => j, { token: 't' });
+    const init = lastInit(fetchMock);
+    expect(init.credentials).toBe('omit');
+    expect(new Headers(init.headers).get('x-autonova-csrf')).toBeNull();
+  });
+
+  it('cookie requests include credentials and the CSRF header', async () => {
+    const fetchMock = capture();
+    await apiRequest('/auth/refresh', (j) => j, { method: 'POST', cookies: true });
+    const init = lastInit(fetchMock);
+    expect(init.credentials).toBe('include');
+    expect(new Headers(init.headers).get('x-autonova-csrf')).toBe('1');
   });
 });

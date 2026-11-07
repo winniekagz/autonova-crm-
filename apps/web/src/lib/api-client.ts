@@ -40,11 +40,20 @@ export async function toApiError(response: Response): Promise<ApiError> {
   return new ApiError(response.status, 'HTTP_ERROR', `Request failed (${response.status})`);
 }
 
+/** Custom header the API requires on every cookie-authenticated request (CSRF defence, docs/06). */
+export const CSRF_HEADER = 'x-autonova-csrf';
+
 export interface ApiRequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   token?: string | null;
   signal?: AbortSignal;
+  /**
+   * Set only on calls that read or set the HttpOnly refresh cookie (login, refresh, logout,
+   * revoking a session). Sends credentials cross-origin plus the CSRF header; every other request
+   * is sent without cookies.
+   */
+  cookies?: boolean;
 }
 
 async function send(path: string, options: ApiRequestOptions): Promise<Response> {
@@ -54,10 +63,12 @@ async function send(path: string, options: ApiRequestOptions): Promise<Response>
       method: options.method ?? 'GET',
       headers: {
         ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}),
+        ...(options.cookies ? { [CSRF_HEADER]: '1' } : {}),
         ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
       },
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       signal: options.signal,
+      credentials: options.cookies ? 'include' : 'omit',
     });
   } catch {
     throw new ApiError(

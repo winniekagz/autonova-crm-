@@ -6,6 +6,15 @@ const config: NextConfig = {
   outputFileTracingRoot: new URL('../../', import.meta.url).pathname,
   poweredByHeader: false,
   reactStrictMode: true,
+  async headers() {
+    return [
+      {
+        // Everything except build assets: pages behind sign-in must never be stored by a shared cache.
+        source: '/((?!_next/static|_next/image|favicon.ico).*)',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
+      },
+    ];
+  },
 };
 
 export default config;

@@ -56,11 +56,14 @@ export const ROLES = [
 export function renderAs(me: MeResponse | null, ui: ReactElement) {
   const expireSession = vi.fn();
   const value: AuthState = {
+    status: me ? 'authenticated' : 'unauthenticated',
     me,
-    accessToken: me ? 'test-token' : null,
     signIn: vi.fn(),
     signOut: vi.fn(),
     expireSession,
+    retryRestore: vi.fn(),
+    getAccessToken: async () => 'test-token',
+    renewAccessToken: async () => 'renewed-token',
   };
   const wrapper = ({ children }: { children: ReactNode }) => (
     <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
@@ -75,24 +78,39 @@ export function requestUrl(input: RequestInfo | URL): URL {
   return new URL(input.url);
 }
 
-type Handler = (request: { url: URL; method: string; body: unknown }) => {
+type Handler = (request: { url: URL; method: string; body: unknown; auth: string | null }) => {
   status?: number;
   body?: unknown;
 };
 
 /** Replaces global fetch with a router keyed by "METHOD /path"; unmatched calls fail the test. */
 export function mockApi(routes: Record<string, Handler>) {
-  const calls: { method: string; path: string; body: unknown; auth: string | null }[] = [];
+  const calls: {
+    method: string;
+    path: string;
+    body: unknown;
+    auth: string | null;
+    csrf: string | null;
+    credentials: RequestCredentials | undefined;
+  }[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = requestUrl(input);
     const method = init?.method ?? 'GET';
     const path = url.pathname.replace('/api/v1', '');
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
     const headers = new Headers(init?.headers);
-    calls.push({ method, path, body, auth: headers.get('authorization') });
+    const auth = headers.get('authorization');
+    calls.push({
+      method,
+      path,
+      body,
+      auth,
+      csrf: headers.get('x-autonova-csrf'),
+      credentials: init?.credentials,
+    });
     const handler = routes[`${method} ${path}`];
     if (!handler) throw new Error(`Unexpected request: ${method} ${path}`);
-    const { status = 200, body: responseBody } = handler({ url, method, body });
+    const { status = 200, body: responseBody } = handler({ url, method, body, auth });
     return new Response(responseBody === undefined ? null : JSON.stringify(responseBody), {
       status,
     });

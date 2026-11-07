@@ -1,4 +1,4 @@
-import type { LoginResponse, MeResponse } from '@autonova/contracts';
+import type { LoginResponse, MeResponse, SessionDto } from '@autonova/contracts';
 import { apiRequest, apiRequestVoid } from '@/lib/api-client';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -53,9 +53,53 @@ export function parseMeResponse(json: unknown): MeResponse {
   throw new Error('Unexpected profile response from the server');
 }
 
+// Login, refresh and logout are the only calls that touch the HttpOnly refresh cookie.
 export const login = (email: string, password: string) =>
-  apiRequest('/auth/login', parseLoginResponse, { method: 'POST', body: { email, password } });
+  apiRequest('/auth/login', parseLoginResponse, {
+    method: 'POST',
+    body: { email, password },
+    cookies: true,
+  });
+
+/** Exchanges the refresh cookie for a new access token. Called only by the SessionManager. */
+export const refreshSession = () =>
+  apiRequest('/auth/refresh', parseLoginResponse, { method: 'POST', cookies: true });
 
 export const getMe = (token: string) => apiRequest('/auth/me', parseMeResponse, { token });
 
-export const logout = (token: string) => apiRequestVoid('/auth/logout', { method: 'POST', token });
+export const logout = (token: string) =>
+  apiRequestVoid('/auth/logout', { method: 'POST', token, cookies: true });
+
+function parseSession(json: unknown): SessionDto {
+  if (
+    isRecord(json) &&
+    typeof json.id === 'string' &&
+    typeof json.createdAt === 'string' &&
+    typeof json.expiresAt === 'string' &&
+    typeof json.current === 'boolean' &&
+    (json.ip === null || typeof json.ip === 'string') &&
+    (json.userAgent === null || typeof json.userAgent === 'string')
+  ) {
+    return {
+      id: json.id,
+      createdAt: json.createdAt,
+      expiresAt: json.expiresAt,
+      current: json.current,
+      ip: json.ip,
+      userAgent: json.userAgent,
+    };
+  }
+  throw new Error('Unexpected session in the server response');
+}
+
+export function parseSessions(json: unknown): SessionDto[] {
+  if (!Array.isArray(json)) throw new Error('Unexpected sessions response from the server');
+  return json.map(parseSession);
+}
+
+export const listSessions = (token: string) =>
+  apiRequest('/auth/sessions', parseSessions, { token });
+
+/** Revoking the CURRENT session makes the API clear the refresh cookie, hence `cookies`. */
+export const revokeSession = (token: string, sessionId: string) =>
+  apiRequestVoid(`/auth/sessions/${sessionId}`, { method: 'DELETE', token, cookies: true });

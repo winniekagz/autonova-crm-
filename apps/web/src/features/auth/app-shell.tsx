@@ -15,17 +15,42 @@ import { can } from './permissions';
  * user can use; the API enforces every permission regardless.
  */
 export function AppShell({ children }: { children: ReactNode }) {
-  const { me, signOut } = useAuth();
+  const { status, me, signOut, retryRestore } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState(false);
 
-  // No session in memory: first visit, a reload (no refresh tokens yet), or a revoked session.
+  // Definitively signed out: first visit, an ended/revoked/expired session or a rejected refresh.
+  // Not while `restoring` (we do not know yet) or `unavailable` (the session may still be valid).
   useEffect(() => {
-    if (!me && !signingOut) router.replace('/login');
-  }, [me, router, signingOut]);
+    if (status === 'unauthenticated' && !signingOut) router.replace('/login');
+  }, [status, router, signingOut]);
 
+  // Nothing user-specific is rendered, on the server or the client, until the session is proven.
+  if (status === 'restoring') {
+    return (
+      <p role="status" className="p-6 text-ink-soft">
+        Checking your session…
+      </p>
+    );
+  }
+  if (status === 'unavailable') {
+    return (
+      <div className="mx-auto max-w-md space-y-3 p-6">
+        <Alert tone="warning">
+          <p className="font-medium">Could not check your session</p>
+          <p className="mt-1">
+            The server did not answer. You have not been signed out. Check your connection and try
+            again.
+          </p>
+        </Alert>
+        <Button variant="secondary" onClick={retryRestore}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
   if (!me) return <p className="p-6 text-ink-soft">Redirecting to sign in…</p>;
 
   async function onSignOut() {
@@ -42,6 +67,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const links = [
     { href: '/', label: 'Home', show: true },
     { href: '/users', label: 'Users', show: can(me, PermissionKey.UsersList) },
+    { href: '/sessions', label: 'Sessions', show: true },
   ].filter((link) => link.show);
 
   return (
