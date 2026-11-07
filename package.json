@@ -1,20 +1,32 @@
 {
   "name": "autonova",
+  "version": "0.0.0",
   "private": true,
+  "description": "Autonova CRM — sales and client engagement management for Autonova Systems Limited",
+  "packageManager": "pnpm@11.0.8",
+  "engines": {
+    "node": ">=20.19"
+  },
   "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev",
-    "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types"
+    "build:packages": "pnpm --filter \"./packages/*\" run build",
+    "build": "pnpm build:packages && pnpm --filter \"./apps/*\" run build",
+    "typecheck": "pnpm build:packages && pnpm -r run typecheck",
+    "lint": "oxlint --type-aware",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm build:packages && pnpm -r run test",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @autonova/api run db:migrate",
+    "db:seed": "pnpm --filter @autonova/api run db:seed",
+    "db:provision-app-role": "pnpm --filter @autonova/api run db:provision-app-role",
+    "dev:api": "pnpm --filter @autonova/api run start:dev",
+    "dev:web": "pnpm --filter @autonova/web run dev"
   },
   "devDependencies": {
-    "prettier": "3.9.6",
-    "turbo": "^2.11.10",
-    "typescript": "7.0.2"
-  },
-  "packageManager": "pnpm@11.25.0",
-  "engines": {
-    "node": ">=24"
+    "oxlint": "^1.58.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "prettier": "^3.4.2",
+    "typescript": "catalog:"
   }
 }
