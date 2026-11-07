@@ -6,6 +6,7 @@ import { Logger } from 'nestjs-pino';
 import { swaggerEnabled, type Env } from './config/env.js';
 import { ApiExceptionFilter } from './common/api-exception.filter.js';
 import { createValidationPipe } from './common/validation.pipe.js';
+import { CSRF_HEADER } from './modules/auth/domain/browser-request.js';
 
 export const API_PREFIX = 'api/v1';
 export const SWAGGER_PATH = 'api/docs';
@@ -19,7 +20,12 @@ export function configureApp(app: NestExpressApplication): void {
   // Trust exactly N hops, never `true`: a client could otherwise spoof its own address.
   app.set('trust proxy', config.get('TRUST_PROXY_HOPS', { infer: true }));
   app.use(helmet());
-  app.enableCors({ origin: config.get('CORS_ORIGINS', { infer: true }), credentials: true });
+  app.enableCors({
+    origin: config.get('CORS_ORIGINS', { infer: true }),
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    allowedHeaders: ['authorization', 'content-type', 'x-request-id', CSRF_HEADER],
+  });
   app.setGlobalPrefix(API_PREFIX);
   app.useGlobalPipes(createValidationPipe());
   app.useGlobalFilters(new ApiExceptionFilter());

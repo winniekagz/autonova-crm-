@@ -11,22 +11,26 @@ export class LogoutUseCase {
     private readonly audit: AuditService,
   ) {}
 
-  /** Revokes the caller's current session. Idempotent: logging out twice is not an error. */
+  /**
+   * Revokes the caller's current session, and with it every refresh token of that session.
+   * Idempotent: logging out an already-revoked session changes and audits nothing.
+   */
   async execute(input: { userId: string; sessionId: string; requestId?: string }): Promise<void> {
-    const revoked = await this.repository.revokeSession(
-      this.prisma,
-      input.sessionId,
-      'logout',
-      new Date(),
-    );
-    if (revoked) {
-      await this.audit.recordSecurity({
+    await this.prisma.$transaction(async (tx) => {
+      const revoked = await this.repository.revokeSession(
+        tx,
+        input.sessionId,
+        'logout',
+        new Date(),
+      );
+      if (!revoked) return;
+      await this.audit.recordSecurityIn(tx, {
         action: 'auth.logout',
         entityType: 'session',
         entityId: input.sessionId,
         actorUserId: input.userId,
         requestId: input.requestId,
       });
-    }
+    });
   }
 }

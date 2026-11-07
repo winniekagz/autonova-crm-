@@ -9,6 +9,7 @@ import { ROLES_REQUIRING_MFA } from '../domain/session-authentication.js';
 import { AuthRepository } from '../infrastructure/auth.repository.js';
 import { AccessTokenService } from './access-token.service.js';
 import { PasswordHasher } from './password-hasher.js';
+import { RefreshTokenService, type IssuedRefreshToken } from './refresh-token.service.js';
 
 export interface LoginInput {
   email: string;
@@ -16,6 +17,12 @@ export interface LoginInput {
   ip: string | null;
   userAgent: string | null;
   requestId?: string;
+}
+
+export interface LoginResult {
+  body: LoginResponse;
+  /** For the HttpOnly cookie only; it must never be placed in the response body. */
+  refreshToken: IssuedRefreshToken;
 }
 
 /** One response for every failure cause: wrong password, unknown email, invited or disabled user. */
@@ -34,13 +41,14 @@ export class LoginUseCase {
     private readonly repository: AuthRepository,
     private readonly hasher: PasswordHasher,
     private readonly tokens: AccessTokenService,
+    private readonly refreshTokens: RefreshTokenService,
     private readonly audit: AuditService,
     config: ConfigService<Env, true>,
   ) {
     this.sessionTtlMs = config.get('SESSION_ABSOLUTE_TTL_SECONDS', { infer: true }) * 1000;
   }
 
-  async execute(input: LoginInput): Promise<LoginResponse> {
+  async execute(input: LoginInput): Promise<LoginResult> {
     const candidate = await this.repository.findLoginCandidate(input.email);
 
     // Always perform one password verification — against a throwaway hash when there is no usable
@@ -75,18 +83,24 @@ export class LoginUseCase {
         ? await this.hasher.hash(input.password)
         : null;
 
-    const session = await this.prisma.$transaction(async (tx) => {
+    const sessionExpiresAt = new Date(now.getTime() + this.sessionTtlMs);
+    const { session, refreshToken } = await this.prisma.$transaction(async (tx) => {
       const created = await this.repository.createSession(tx, {
         userId: candidate.id,
-        expiresAt: new Date(now.getTime() + this.sessionTtlMs),
+        expiresAt: sessionExpiresAt,
         ip: input.ip,
         userAgent: input.userAgent?.slice(0, 255) ?? null,
+      });
+      const issued = await this.refreshTokens.issue(tx, {
+        sessionId: created.id,
+        sessionExpiresAt,
+        now,
       });
       await tx.user.update({
         where: { id: candidate.id },
         data: { lastLoginAt: now, ...(upgradedHash ? { passwordHash: upgradedHash } : {}) },
       });
-      return created;
+      return { session: created, refreshToken: issued };
     });
 
     const mfaRequired = candidate.roleKeys.some((role) => ROLES_REQUIRING_MFA.includes(role));
@@ -100,10 +114,13 @@ export class LoginUseCase {
     });
 
     return {
-      accessToken: await this.tokens.sign(candidate.id, session.id),
-      tokenType: 'Bearer',
-      expiresIn: this.tokens.expiresInSeconds,
-      mfaRequired,
+      body: {
+        accessToken: await this.tokens.sign(candidate.id, session.id),
+        tokenType: 'Bearer',
+        expiresIn: this.tokens.expiresInSeconds,
+        mfaRequired,
+      },
+      refreshToken,
     };
   }
 

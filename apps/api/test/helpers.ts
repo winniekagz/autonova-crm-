@@ -105,3 +105,56 @@ export async function createVerifiedDirector(app: NestExpressApplication) {
   const token = await loginVerifiedToken(app, director.email);
   return { director, token };
 }
+
+export const WEB_ORIGIN = 'http://localhost:3000';
+export const REFRESH_COOKIE = 'autonova_refresh';
+
+/** All Set-Cookie lines of a response (empty when none), whatever shape the client library gives. */
+export function setCookies(res: request.Response): string[] {
+  const header: unknown = res.headers['set-cookie'];
+  if (Array.isArray(header)) return header.filter((c): c is string => typeof c === 'string');
+  return typeof header === 'string' ? [header] : [];
+}
+
+/** The raw refresh token from a login/refresh response's Set-Cookie header, or null if absent. */
+export function refreshTokenFrom(res: request.Response): string | null {
+  const line = setCookies(res).find((c) => c.startsWith(`${REFRESH_COOKIE}=`));
+  const value = line?.split(';')[0]?.slice(REFRESH_COOKIE.length + 1);
+  return value ? value : null;
+}
+
+/** Like `refreshTokenFrom` but fails the test with a clear message when the cookie is absent. */
+export function requireRefreshToken(res: request.Response): string {
+  const token = refreshTokenFrom(res);
+  if (!token) throw new Error(`expected a ${REFRESH_COOKIE} cookie, got status ${res.status}`);
+  return token;
+}
+
+/** POST /auth/refresh exactly as the web app sends it; every part can be overridden or dropped. */
+export function refresh(
+  app: NestExpressApplication,
+  token: string | null,
+  opts: { origin?: string | null; csrf?: string | null } = {},
+) {
+  const req = request(app.getHttpServer()).post('/api/v1/auth/refresh');
+  const origin = opts.origin === undefined ? WEB_ORIGIN : opts.origin;
+  const csrf = opts.csrf === undefined ? '1' : opts.csrf;
+  if (origin !== null) req.set('origin', origin);
+  if (csrf !== null) req.set('x-autonova-csrf', csrf);
+  if (token !== null) req.set('cookie', `${REFRESH_COOKIE}=${token}`);
+  return req;
+}
+
+/** Logs in and returns both credentials the browser would hold. */
+export async function loginSession(
+  app: NestExpressApplication,
+  email: string,
+  password = PASSWORD,
+) {
+  const res = await login(app, email, password);
+  if (res.status !== 200)
+    throw new Error(`login failed: ${res.status} ${JSON.stringify(res.body)}`);
+  const refreshToken = refreshTokenFrom(res);
+  if (!refreshToken) throw new Error('login did not set a refresh cookie');
+  return { accessToken: res.body.accessToken as string, refreshToken, response: res };
+}

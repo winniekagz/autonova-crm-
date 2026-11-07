@@ -1,4 +1,4 @@
-import { emailSchema } from '@autonova/validation';
+import { emailSchema, uuidSchema } from '@autonova/validation';
 import { z } from 'zod';
 
 /**
@@ -13,3 +13,5 @@ export const loginBodySchema = z
   .strict();
 
 export type LoginBody = z.infer<typeof loginBodySchema>;
+
+export const sessionIdParamSchema = uuidSchema;

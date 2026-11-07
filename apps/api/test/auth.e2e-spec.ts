@@ -28,7 +28,7 @@ describe('authentication: login, /auth/me, logout, per-request checks (e2e)', ()
   });
 
   describe('login', () => {
-    it('returns a bearer token and never a hash, a refresh token or a cookie', async () => {
+    it('returns a bearer token; the refresh token is only ever in the HttpOnly cookie', async () => {
       const user = await createUser(app);
       const res = await login(app, user.email);
       expect(res.status).toBe(200);
@@ -38,8 +38,8 @@ describe('authentication: login, /auth/me, logout, per-request checks (e2e)', ()
         expiresIn: 900,
         mfaRequired: false,
       });
-      expect(res.headers['set-cookie']).toBeUndefined();
-      expect(JSON.stringify(res.body)).not.toMatch(/argon2|passwordHash/i);
+      expect(res.headers['set-cookie']).toHaveLength(1);
+      expect(JSON.stringify(res.body)).not.toMatch(/argon2|passwordHash|refresh/i);
     });
 
     it('creates a session with ip and user agent, and records last login', async () => {
@@ -195,12 +195,15 @@ describe('authentication: login, /auth/me, logout, per-request checks (e2e)', ()
           if (res.status !== 401) publicOps.add(`${method.toUpperCase()} ${path} -> ${res.status}`);
         }
       }
-      // login is public (and answers 400 to an empty body); health endpoints answer 200.
+      // login is public (and answers 400 to an empty body); refresh is public but its CSRF guard
+      // refuses a request with no Origin/custom header (403); health endpoints answer 200.
       // The test-only probe is private (401) and therefore absent from this list.
       expect([...publicOps].sort()).toEqual([
         'GET /api/v1/health -> 200',
         'GET /api/v1/health/live -> 200',
         'POST /api/v1/auth/login -> 400',
+        // Public because it has no access token; authenticated by the refresh cookie + CSRF guard.
+        'POST /api/v1/auth/refresh -> 403',
       ]);
     });
   });

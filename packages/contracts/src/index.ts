@@ -35,7 +35,7 @@ export interface HealthResponse {
   details: Record<string, { status: HealthIndicatorStatus; message?: string }>;
 }
 
-/** `POST /auth/login` success body. The refresh token (step 5) travels in an HttpOnly cookie, never here. */
+/** `POST /auth/login` success body. The refresh token travels in an HttpOnly cookie, never here. */
 export interface LoginResponse {
   accessToken: string;
   tokenType: 'Bearer';
@@ -46,6 +46,21 @@ export interface LoginResponse {
    * only reach `/auth/me`, `/auth/logout` and the MFA endpoints until MFA is verified.
    */
   mfaRequired: boolean;
+}
+
+/** `POST /auth/refresh` success body: same shape as login. The rotated refresh token is in the cookie. */
+export type RefreshResponse = LoginResponse;
+
+/** One live sign-in of the caller. Never carries token hashes or any credential. */
+export interface SessionDto {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  /** True for the session that made this request. */
+  current: boolean;
+  /** Network address and browser the session was created from, for the owner to recognise it. */
+  ip: string | null;
+  userAgent: string | null;
 }
 
 /** `GET /auth/me`. Roles/permissions are the CURRENT server-side values, not token claims. */

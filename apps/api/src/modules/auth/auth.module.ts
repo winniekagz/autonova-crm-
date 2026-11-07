@@ -6,10 +6,15 @@ import { BootstrapDirectorUseCase } from './application/bootstrap-director.use-c
 import { LoginUseCase } from './application/login.use-case.js';
 import { LogoutUseCase } from './application/logout.use-case.js';
 import { PasswordHasher } from './application/password-hasher.js';
+import { RefreshSessionUseCase } from './application/refresh-session.use-case.js';
+import { RefreshTokenService } from './application/refresh-token.service.js';
+import { ListSessionsUseCase, RevokeSessionUseCase } from './application/sessions.use-cases.js';
 import { SessionAuthenticator } from './application/session-authenticator.js';
 import { AuthRepository } from './infrastructure/auth.repository.js';
 import { AuthController } from './presentation/auth.controller.js';
 import { AuthGuard } from './presentation/auth.guard.js';
+import { BrowserRequestGuard } from './presentation/browser-request.guard.js';
+import { RefreshCookie } from './presentation/refresh-cookie.js';
 
 @Module({
   imports: [JwtModule.register({})],
@@ -21,6 +26,12 @@ import { AuthGuard } from './presentation/auth.guard.js';
     SessionAuthenticator,
     LoginUseCase,
     LogoutUseCase,
+    RefreshTokenService,
+    RefreshSessionUseCase,
+    ListSessionsUseCase,
+    RevokeSessionUseCase,
+    RefreshCookie,
+    BrowserRequestGuard,
     BootstrapDirectorUseCase,
     // Global and deny-by-default: every route in the application is private unless @Public().
     { provide: APP_GUARD, useClass: AuthGuard },
