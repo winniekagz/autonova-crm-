@@ -1,21 +1,32 @@
 # Implementation progress
 
-_Last updated: 2026-11-07 · Current phase: **Phase 1 in progress** — login, permission model and the first user-administration slice are done; next: refresh tokens (step 5 of the original plan), then TOTP MFA_
+_Last updated: 2026-11-07 · Current phase: **Phase 1 in progress** — login, permission model and the first user-administration slice are done; refresh tokens, session management and persistent web login are done; next: TOTP MFA_
 
 ## Phase 1 — Authentication and access control 🟡
 
-| Step                                                                                                        | State   | Evidence                                                                                                              |
-| ----------------------------------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------- |
-| 0. DB role split + `audit_logs.category` (migration `20261107025746_audit_category_and_app_role`)           | ✅      | e2e: app role denied UPDATE/DELETE/TRUNCATE/DDL/DISABLE TRIGGER/`_prisma_migrations`; owner still stopped by triggers |
-| 1. Audit service (business in-transaction, security standalone, allow-list snapshots, credential-key guard) | ✅      | 11 unit + 4 e2e (rollback in both directions)                                                                         |
-| 2. Password hasher (argon2id, configurable, rehash detection) + password policy + benchmark script          | ✅      | 5 + 6 unit tests; bench: 199 ms at the default cost on the dev machine                                                |
-| 3. First-Director bootstrap (CLI only)                                                                      | ✅      | 5 e2e incl. race test (mutation-checked) + manual CLI run (invalid input → exit 2, success, repeat refused)           |
-| 4. Login + `/auth/me` + deny-by-default guard + per-request user/session checks                             | ⏳ next | needs `sessions`, `refresh_tokens` migration                                                                          |
-| 5. Refresh rotation + logout/revocation                                                                     | ⏳      |                                                                                                                       |
-| 6. Director TOTP MFA                                                                                        | ⏳      |                                                                                                                       |
-| 7. Permission guard, role/permission admin, permission seeding ("clear" rows)                               | ⏳      | S1 for the rest                                                                                                       |
-| 8. Invitations / password reset / user admin API                                                            | ⏳      | S3 email provider                                                                                                     |
-| 9. Backups + restore test                                                                                   | ⏳      | S10                                                                                                                   |
+| Step                                                                                                                                 | State | Evidence                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ----- | --------------------------------------------------------------------------------------------------------------------- |
+| 0. DB role split + `audit_logs.category` (migration `20261107025746_audit_category_and_app_role`)                                    | ✅    | e2e: app role denied UPDATE/DELETE/TRUNCATE/DDL/DISABLE TRIGGER/`_prisma_migrations`; owner still stopped by triggers |
+| 1. Audit service (business in-transaction, security standalone, allow-list snapshots, credential-key guard)                          | ✅    | 11 unit + 4 e2e (rollback in both directions)                                                                         |
+| 2. Password hasher (argon2id, configurable, rehash detection) + password policy + benchmark script                                   | ✅    | 5 + 6 unit tests; bench: 199 ms at the default cost on the dev machine                                                |
+| 3. First-Director bootstrap (CLI only)                                                                                               | ✅    | 5 e2e incl. race test (mutation-checked) + manual CLI run (invalid input → exit 2, success, repeat refused)           |
+| 4. Login + `/auth/me` + deny-by-default guard + per-request user/session checks                                                      | ✅    | see Step 4 gate below                                                                                                 |
+| 5. User administration                                                                                                               | ✅    | see Final gate below                                                                                                  |
+| 6. Refresh tokens, rotation + replay detection, session management, persistent web login (migration `20261107132520_refresh_tokens`) | ✅    | 51 new api e2e (incl. 12-way concurrent refresh against the real DB), 12 new api unit, 30 new web; details below      |
+| 7. Director TOTP MFA                                                                                                                 | ⏳    |                                                                                                                       |
+| 8. Permission guard, role/permission admin, permission seeding ("clear" rows)                                                        | ⏳    | S1 for the rest                                                                                                       |
+| 9. Invitations / password reset                                                                                                      | ⏳    | S3 email provider                                                                                                     |
+| 10. Backups + restore test                                                                                                           | ⏳    | S10                                                                                                                   |
+
+**Gate after step 6 (refresh tokens):** lint ✔ · typecheck ✔ · unit: packages 23, api 102, web 114 ✔ · api e2e 153 ✔ (the 102 earlier tests, incl. all Step 4/5 security tests, plus 51 new) · `pnpm build` ✔ · `migrate status` up to date, `migrate diff` drift exit 0 ✔ · api and web images rebuilt and checked against the running containers; browser check (login → reload keeps session → sessions page → revoke other → sign out → reload stays signed out) ✔. Prettier is clean for every file of this project; it still flags the vendored `.agents/` skill markdown, which is not project code.
+
+**Things to know (step 6)**
+
+- A page reload no longer signs the user out: the app restores the session from the HttpOnly refresh cookie. Server-rendered protected pages are only a neutral shell; the reason and the unresolved backend-for-frontend decision are in [06](../06-security-and-access-control.md) ("Web: persistent login and protected first renders").
+- Re-using a rotated refresh token ends that session, with no grace period. A browser without the Web Locks API that refreshes from two tabs at the same instant can therefore be signed out.
+- Sessions that existed before the migration have no refresh token and end with their access token (15 min).
+- Directors still cannot get past the MFA restriction (TOTP is the next step); refresh keeps them restricted and never sets `mfa_verified_at`.
+- Open: cleanup job for expired sessions/tokens, Director revoking other users' sessions (`sessions:revoke`), a refresh rate limit keyed by more than IP.
 
 **Final gate (after user administration):** format ✔ · lint ✔ · typecheck ✔ · unit 148 (packages 23, api 70, web 55) ✔ · api e2e 102 ✔ (incl. the 52 Step 4 security regression tests, re-run separately) ✔ · `pnpm build` ✔ · `migrate status` up to date, drift exit 0 ✔. API docker image not rebuilt.
 

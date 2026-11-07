@@ -62,7 +62,19 @@ currently seeded role keys are `director`, `business_development`, `technical_le
 Protected requests use `Authorization: Bearer <accessToken>`. Access tokens expire after 15 minutes
 by default. Roles and permissions are read from the server when `/auth/me` is requested. Accounts
 with MFA requirements may have a restricted session until their second factor is verified. Refresh
-tokens are HttpOnly cookies and are not included in login JSON responses.
+tokens are HttpOnly cookies (`autonova_refresh`, `Path=/api/v1/auth`) and are never included in JSON responses.
+
+`POST /auth/refresh` exchanges that cookie for a new access token and rotates the cookie. It needs no
+bearer token, but requires an allowed `Origin` and the header `X-Autonova-CSRF: 1`; every failure is
+`401 REFRESH_TOKEN_INVALID` (or `403 CSRF_REJECTED`). Re-using a rotated token ends the session.
+Browsers only: Swagger UI cannot send the cookie.
+
+| Method | Path                                | Auth                                                  | Notes                                                                                                                                                          |
+| ------ | ----------------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/api/v1/auth/refresh`              | refresh cookie + `Origin` + `X-Autonova-CSRF: 1`      | New access token (same body as login); rotates the cookie                                                                                                      |
+| GET    | `/api/v1/auth/sessions`             | bearer, any signed-in user (also restricted sessions) | Your own live sessions: `id`, `createdAt`, `expiresAt`, `current`, `ip`, `userAgent`. Never token data                                                         |
+| DELETE | `/api/v1/auth/sessions/{sessionId}` | bearer, any signed-in user                            | Revokes one of your own sessions and its refresh tokens; `404 SESSION_NOT_FOUND` for unknown/foreign/ended ids; revoking the current session clears the cookie |
+| POST   | `/api/v1/auth/logout`               | bearer                                                | Revokes the current session and its refresh tokens; clears the cookie                                                                                          |
 
 User endpoints require the permission shown in the table. An authenticated user without the needed
 permission receives `403 FORBIDDEN`. Missing or invalid credentials receive `401`.
