@@ -1,4 +1,5 @@
 import type {
+  CompanyIndustry,
   LeadDisqualificationReason,
   LeadReminderReason,
   LeadReminderStatus,
@@ -118,7 +119,13 @@ export interface RoleDto {
 export interface LeadDto {
   id: string;
   name: string;
+  /** The linked company's name; the original text for a lead that is not linked. */
   companyName: string | null;
+  /** Linked company, or null for an individual prospect. */
+  company: LeadCompanyRef | null;
+  primaryContact: LeadContactRef | null;
+  /** Other contacts involved in this deal (excludes the primary contact). */
+  additionalContacts: LeadContactRef[];
   phone: string | null;
   email: string | null;
   source: LeadSource;
@@ -142,6 +149,19 @@ export interface LeadDto {
   probability: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface LeadCompanyRef {
+  id: string;
+  name: string;
+  archived: boolean;
+}
+
+export interface LeadContactRef {
+  id: string;
+  name: string;
+  jobTitle: string | null;
+  archived: boolean;
 }
 
 /** Server-derived workflow options, independent of the caller's update permission. */
@@ -169,11 +189,15 @@ export interface LeadStageHistoryDto {
 
 export interface LeadInput {
   name: string;
-  companyName?: string;
   phone?: string;
   email?: string;
   source: LeadSource;
   referrerName?: string;
+  /** Company to link on create. Use `LeadRelationshipsRequest` to change it later. */
+  companyId?: string | null;
+  /** Contacts to link on create; they must belong to `companyId`. */
+  primaryContactId?: string | null;
+  additionalContactIds?: string[];
   /** `null` clears the product; omit to leave it unchanged on update. */
   productInterest?: ProductInterest | null;
   notes?: string;
@@ -189,14 +213,22 @@ export interface LeadSaveRequest extends LeadInput {
   acknowledgeDuplicates?: boolean;
 }
 
+/** Changes which company and contacts a lead is linked to; the lead's other fields are untouched. */
+export interface LeadRelationshipsRequest {
+  /** `null` makes the lead an individual prospect. */
+  companyId: string | null;
+  primaryContactId: string | null;
+  additionalContactIds: string[];
+}
+
 export interface LeadDuplicateCheckRequest {
   phone?: string;
-  companyName?: string;
   /** The lead being edited, so it is not reported as a duplicate of itself. */
   excludeLeadId?: string;
 }
 
-export type LeadDuplicateMatch = 'PHONE' | 'COMPANY';
+/** Only the phone number: several leads for one company are expected, so a shared company is not a duplicate. */
+export type LeadDuplicateMatch = 'PHONE';
 
 /** Only leads the caller may already read are listed. */
 export interface LeadDuplicateCandidateDto {
@@ -247,4 +279,98 @@ export interface ChangeUserRolesRequest {
 
 export interface DisableUserRequest {
   reason?: string;
+}
+
+export type CompanyDuplicateMatch = 'KRA_PIN' | 'NAME';
+
+export interface CompanyDto {
+  id: string;
+  name: string;
+  kraPin: string | null;
+  location: string | null;
+  industry: CompanyIndustry | null;
+  staffCount: number | null;
+  branchCount: number | null;
+  website: string | null;
+  socialLinks: string[];
+  archived: boolean;
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+  /** Counts only what the caller may see (BD: their own leads). */
+  contactCount: number;
+  leadCount: number;
+}
+
+export interface CompanyInput {
+  name: string;
+  kraPin?: string;
+  location?: string;
+  industry?: CompanyIndustry | null;
+  staffCount?: number | null;
+  branchCount?: number | null;
+  website?: string;
+  socialLinks?: string[];
+}
+
+export interface CompanySaveRequest extends CompanyInput {
+  /** Set after the user reviewed possible name matches. A matching KRA PIN can never be bypassed. */
+  acknowledgeDuplicates?: boolean;
+}
+
+export interface CompanyDuplicateCheckRequest {
+  name?: string;
+  kraPin?: string;
+  excludeCompanyId?: string;
+}
+
+export interface CompanyDuplicateCandidateDto {
+  id: string;
+  name: string;
+  kraPin: string | null;
+  location: string | null;
+  archived: boolean;
+  matchedOn: CompanyDuplicateMatch[];
+}
+
+export interface CompanyDuplicateCheckResult {
+  /** Same KRA PIN: the save is refused. */
+  exact: CompanyDuplicateCandidateDto[];
+  /** Same normalised name: the user may confirm. */
+  potential: CompanyDuplicateCandidateDto[];
+  hiddenMatchCount: number;
+}
+
+export interface ContactDto {
+  id: string;
+  companyId: string;
+  name: string;
+  jobTitle: string | null;
+  phone: string | null;
+  email: string | null;
+  whatsappNumber: string | null;
+  isDecisionMaker: boolean;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContactInput {
+  name: string;
+  jobTitle?: string;
+  phone?: string;
+  email?: string;
+  whatsappNumber?: string;
+  isDecisionMaker: boolean;
+}
+
+/** A lead as shown on its company page: only fields a company screen needs. */
+export interface CompanyLeadDto {
+  id: string;
+  name: string;
+  stage: LeadStage;
+  ownerName: string;
+  estimatedValue: string | null;
+  currency: 'KES' | 'USD';
+  nextActionAt: string;
 }

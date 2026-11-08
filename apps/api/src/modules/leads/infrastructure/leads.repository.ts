@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../../generated/prisma/client.js';
-import type { LeadDto, LeadStageHistoryDto, Paginated } from '@autonova/contracts';
+import type { LeadContactRef, LeadDto, LeadStageHistoryDto, Paginated } from '@autonova/contracts';
 import { LeadDisqualificationReason, LeadStage, ProductInterest } from '@autonova/enums';
 import { PrismaService } from '../../../prisma/prisma.service.js';
-import { normalizeCompanyName, normalizePhone, type LeadKeys } from '../domain/lead-duplicates.js';
+import { normalizePhone, type LeadKeys } from '../domain/lead-duplicates.js';
 import { availableLeadLifecycle } from '../domain/lead-lifecycle.js';
 import type {
   CreateLeadFields,
@@ -13,7 +13,21 @@ import type {
 
 type Db = Prisma.TransactionClient;
 
-const includeOwner = { owner: { select: { fullName: true } } } as const;
+const contactRef = { select: { id: true, name: true, jobTitle: true, archivedAt: true } } as const;
+const includeOwner = {
+  owner: { select: { fullName: true } },
+  company: { select: { id: true, name: true, archivedAt: true } },
+  primaryContact: contactRef,
+  contacts: { select: { contact: contactRef }, orderBy: { createdAt: 'asc' } },
+} as const;
+
+type ContactRefRow = { id: string; name: string; jobTitle: string | null; archivedAt: Date | null };
+const toContactRef = (row: ContactRefRow): LeadContactRef => ({
+  id: row.id,
+  name: row.name,
+  jobTitle: row.jobTitle,
+  archived: row.archivedAt !== null,
+});
 
 export function toLeadDto(row: {
   id: string;
@@ -37,6 +51,9 @@ export function toLeadDto(row: {
   revisitOn: Date | null;
   ownerUserId: string;
   owner: { fullName: string };
+  company: { id: string; name: string; archivedAt: Date | null } | null;
+  primaryContact: ContactRefRow | null;
+  contacts: { contact: ContactRefRow }[];
   nextAction: string;
   nextActionAt: Date;
   probability: number | null;
@@ -46,7 +63,13 @@ export function toLeadDto(row: {
   return {
     id: row.id,
     name: row.name,
-    companyName: row.companyName,
+    // The company record is the source of truth once linked; the text only survives on unlinked legacy rows.
+    companyName: row.company?.name ?? row.companyName,
+    company: row.company
+      ? { id: row.company.id, name: row.company.name, archived: row.company.archivedAt !== null }
+      : null,
+    primaryContact: row.primaryContact ? toContactRef(row.primaryContact) : null,
+    additionalContacts: row.contacts.map((link) => toContactRef(link.contact)),
     phone: row.phone,
     email: row.email,
     source: row.source as LeadDto['source'],
@@ -84,6 +107,7 @@ export class LeadsRepository {
             OR: [
               { name: { contains: filter.q, mode: 'insensitive' } },
               { companyName: { contains: filter.q, mode: 'insensitive' } },
+              { company: { name: { contains: filter.q, mode: 'insensitive' } } },
               { email: { contains: filter.q, mode: 'insensitive' } },
               { phone: { contains: filter.q } },
             ],
@@ -192,11 +216,10 @@ export class LeadsRepository {
     });
   }
 
-  /** Leads (any owner, any stage) sharing a normalised phone or company key. Callers filter by visibility. */
+  /** Leads (any owner, any stage) sharing a normalised phone. Callers filter by visibility. */
   async findDuplicateCandidates(keys: LeadKeys, excludeLeadId: string | undefined, take = 50) {
     const matches: Prisma.LeadWhereInput[] = [];
     if (keys.phone) matches.push({ phoneNormalized: keys.phone });
-    if (keys.company) matches.push({ companyNameNormalized: keys.company });
     if (matches.length === 0) return [];
     return this.prisma.lead.findMany({
       where: { OR: matches, ...(excludeLeadId ? { id: { not: excludeLeadId } } : {}) },
@@ -204,11 +227,11 @@ export class LeadsRepository {
         id: true,
         name: true,
         companyName: true,
+        company: { select: { name: true } },
         phone: true,
         stage: true,
         ownerUserId: true,
         phoneNormalized: true,
-        companyNameNormalized: true,
         createdAt: true,
         owner: { select: { fullName: true } },
       },
@@ -217,14 +240,24 @@ export class LeadsRepository {
     });
   }
 
-  async create(input: CreateLeadFields, actorUserId: string, db: Db = this.prisma) {
+  async create(
+    input: CreateLeadFields,
+    links: {
+      companyId: string | null;
+      primaryContactId: string | null;
+      additionalContactIds: string[];
+    },
+    actorUserId: string,
+    db: Db = this.prisma,
+  ) {
     return db.lead.create({
       data: {
         ...input,
+        companyId: links.companyId,
+        primaryContactId: links.primaryContactId,
+        contacts: { create: links.additionalContactIds.map((contactId) => ({ contactId })) },
         phoneNormalized: normalizePhone(input.phone),
-        companyNameNormalized: normalizeCompanyName(input.companyName),
         email: input.email || null,
-        companyName: input.companyName || null,
         phone: input.phone || null,
         referrerName: input.referrerName || null,
         productInterest: input.productInterest ?? null,
@@ -251,12 +284,6 @@ export class LeadsRepository {
       data: {
         ...input,
         ...(input.email !== undefined ? { email: input.email || null } : {}),
-        ...(input.companyName !== undefined
-          ? {
-              companyName: input.companyName || null,
-              companyNameNormalized: normalizeCompanyName(input.companyName),
-            }
-          : {}),
         ...(input.phone !== undefined
           ? { phone: input.phone || null, phoneNormalized: normalizePhone(input.phone) }
           : {}),
@@ -267,6 +294,43 @@ export class LeadsRepository {
         ...(input.nextActionAt !== undefined ? { nextActionAt: new Date(input.nextActionAt) } : {}),
       },
       include: includeOwner,
+    });
+  }
+
+  /**
+   * Replaces a lead's company and contact links. Existing extra contacts are removed first because a
+   * database trigger requires every linked contact to belong to the lead's (new) company.
+   */
+  async setRelationships(
+    db: Db,
+    leadId: string,
+    links: {
+      companyId: string | null;
+      primaryContactId: string | null;
+      additionalContactIds: string[];
+    },
+  ) {
+    await db.leadContact.deleteMany({ where: { leadId } });
+    await db.lead.update({
+      where: { id: leadId },
+      data: { companyId: links.companyId, primaryContactId: links.primaryContactId },
+      select: { id: true },
+    });
+    if (links.additionalContactIds.length > 0) {
+      await db.leadContact.createMany({
+        data: links.additionalContactIds.map((contactId) => ({ leadId, contactId })),
+      });
+    }
+  }
+
+  linksOf(db: Db, leadId: string) {
+    return db.lead.findUnique({
+      where: { id: leadId },
+      select: {
+        companyId: true,
+        primaryContactId: true,
+        contacts: { select: { contactId: true }, orderBy: { createdAt: 'asc' } },
+      },
     });
   }
 }

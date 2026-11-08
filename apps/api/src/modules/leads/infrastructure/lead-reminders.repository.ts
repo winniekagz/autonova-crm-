@@ -13,6 +13,7 @@ const claimInclude = {
       id: true,
       name: true,
       companyName: true,
+      company: { select: { name: true } },
       stage: true,
       nextAction: true,
       nextActionAt: true,

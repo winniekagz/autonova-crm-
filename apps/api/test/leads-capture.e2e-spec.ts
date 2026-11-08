@@ -25,14 +25,12 @@ describe('lead capture: product catalogue, duplicates, reminders (e2e)', () => {
     return {
       tag,
       phone: `0722${String(100_000 + n * 7).padStart(6, '0')}`,
-      company: `Capture ${tag} Ltd`,
     };
   };
   const lead = (over: Record<string, unknown> = {}) => {
     const u = unique();
     return {
       name: `Lead ${u.tag}`,
-      companyName: u.company,
       phone: u.phone,
       source: 'WEBSITE',
       currency: 'KES',
@@ -91,14 +89,13 @@ describe('lead capture: product catalogue, duplicates, reminders (e2e)', () => {
   describe('duplicate detection', () => {
     it('warns once, then saves when the user acknowledges; nothing is merged or overwritten', async () => {
       const { token } = await bd();
-      const first = unique();
       const original = await http()
         .post('/api/v1/leads')
         .set(bearer(token))
-        .send(lead({ phone: '0712 345 678', companyName: first.company }));
+        .send(lead({ phone: '0712 345 678' }));
       expect(original.status).toBe(201);
 
-      const same = lead({ phone: '+254-712-345-678', companyName: 'someone else' });
+      const same = lead({ phone: '+254-712-345-678' });
       const warned = await http().post('/api/v1/leads').set(bearer(token)).send(same);
       expect(warned.status).toBe(409);
       expect(warned.body.code).toBe('LEAD_DUPLICATE_SUSPECTED');
@@ -131,35 +128,13 @@ describe('lead capture: product catalogue, duplicates, reminders (e2e)', () => {
       expect(audit?.newValues).toMatchObject({ duplicateAcknowledged: true });
     });
 
-    it('matches company names regardless of case, spacing, punctuation and a Ltd/Limited suffix', async () => {
-      const { token } = await bd();
-      const u = unique();
-      await http()
-        .post('/api/v1/leads')
-        .set(bearer(token))
-        .send(lead({ companyName: `Zeta ${u.tag} Limited`, phone: u.phone }));
-      for (const variant of [`  ZETA   ${u.tag}  ltd.`, `zeta-${u.tag}`]) {
-        const res = await http()
-          .post('/api/v1/leads/duplicate-check')
-          .set(bearer(token))
-          .send({ companyName: variant });
-        expect(res.body.candidates, variant).toHaveLength(1);
-        expect(res.body.candidates[0].matchedOn).toEqual(['COMPANY']);
-      }
-      const other = await http()
-        .post('/api/v1/leads/duplicate-check')
-        .set(bearer(token))
-        .send({ companyName: `Zeta ${u.tag} Holdings` });
-      expect(other.body.candidates).toHaveLength(0);
-    });
-
-    it('does not warn for leads without a phone or company, or with an unusable phone', async () => {
+    it('does not warn for leads without a phone, or with an unusable phone', async () => {
       const { token } = await bd();
       for (let i = 0; i < 2; i += 1) {
         const res = await http()
           .post('/api/v1/leads')
           .set(bearer(token))
-          .send(lead({ companyName: undefined, phone: i === 0 ? undefined : '12' }));
+          .send(lead({ phone: i === 0 ? undefined : '12' }));
         expect(res.status).toBe(201);
       }
     });
@@ -197,7 +172,7 @@ describe('lead capture: product catalogue, duplicates, reminders (e2e)', () => {
       expect(seen.body.candidates).toEqual([expect.objectContaining({ id: hidden.body.id })]);
     });
 
-    it('checks an edit only when phone or company actually changes, and excludes the lead itself', async () => {
+    it('checks an edit only when the phone actually changes, and excludes the lead itself', async () => {
       const { token } = await bd();
       const a = await http().post('/api/v1/leads').set(bearer(token)).send(lead());
       const b = await http().post('/api/v1/leads').set(bearer(token)).send(lead());

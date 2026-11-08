@@ -32,6 +32,22 @@ enum LeadSource {
   EXISTING_CLIENT_UPSELL
 }
 
+enum CompanyIndustry {
+  RETAIL
+  HOSPITALITY
+  AUTOMOTIVE
+  MANUFACTURING
+  LOGISTICS
+  EDUCATION
+  HEALTHCARE
+  FINANCE
+  AGRICULTURE
+  REAL_ESTATE
+  TECHNOLOGY
+  GOVERNMENT
+  OTHER
+}
+
 enum ProductInterest {
   RETAIL_POS
   CAR_WASH_AUTOMATION
@@ -106,6 +122,11 @@ model User {
   lostLeads         Lead[]             @relation("LeadLostBy")
   disqualifiedLeads Lead[]             @relation("LeadDisqualifiedBy")
   leadReminders     LeadReminder[]     @relation("LeadReminderRecipient")
+  createdCompanies  Company[]          @relation("CompanyCreator")
+  updatedCompanies  Company[]          @relation("CompanyUpdater")
+  archivedCompanies Company[]          @relation("CompanyArchiver")
+  createdContacts   Contact[]          @relation("ContactCreator")
+  updatedContacts   Contact[]          @relation("ContactUpdater")
 
   @@map("users")
 }
@@ -138,6 +159,10 @@ model Lead {
   productInterest        ProductInterest?            @map("product_interest")
   legacyProductInterest  String?                     @map("legacy_product_interest")
   /// Comparison keys for duplicate detection; always written with the lead (domain/lead-duplicates.ts).
+  /// Null for an individual prospect. `company_name` keeps the text captured at entry; once a lead is
+  /// linked, the company record is the source of truth for the name.
+  companyId              String?                     @map("company_id") @db.Uuid
+  primaryContactId       String?                     @map("primary_contact_id") @db.Uuid
   phoneNormalized        String?                     @map("phone_normalized")
   companyNameNormalized  String?                     @map("company_name_normalized")
   notes                  String?
@@ -165,7 +190,12 @@ model Lead {
   disqualifiedBy User?              @relation("LeadDisqualifiedBy", fields: [disqualifiedByUserId], references: [id], onDelete: Restrict)
   stageHistory   LeadStageHistory[]
   reminders      LeadReminder[]
+  company        Company?           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  primaryContact Contact?           @relation("LeadPrimaryContact", fields: [primaryContactId], references: [id], onDelete: Restrict)
+  contacts       LeadContact[]
 
+  @@index([companyId, ownerUserId])
+  @@index([primaryContactId])
   @@index([ownerUserId, stage, updatedAt(sort: Desc)])
   @@index([phoneNormalized])
   @@index([companyNameNormalized])
@@ -175,6 +205,81 @@ model Lead {
 }
 
 /// Immutable domain history. The runtime DB role receives INSERT/SELECT only.
+/// An organisation Autonova deals with, separate from its people and its deals (PRD 4.2).
+/// Archived instead of deleted: leads, contacts and later ToRs/accounts keep referencing it.
+model Company {
+  id               String           @id @default(uuid(7)) @db.Uuid
+  name             String
+  /// Lower-case words without punctuation or a trailing legal suffix (domain/company-keys.ts).
+  nameNormalized   String           @map("name_normalized")
+  kraPin           String?          @map("kra_pin")
+  location         String?
+  industry         CompanyIndustry?
+  staffCount       Int?             @map("staff_count")
+  branchCount      Int?             @map("branch_count")
+  website          String?
+  socialLinks      String[]         @default([]) @map("social_links")
+  archivedAt       DateTime?        @map("archived_at") @db.Timestamptz(3)
+  archivedByUserId String?          @map("archived_by_user_id") @db.Uuid
+  createdByUserId  String           @map("created_by_user_id") @db.Uuid
+  updatedByUserId  String           @map("updated_by_user_id") @db.Uuid
+  /// Set when the legacy-text backfill created this row from a name that closely matches another.
+  needsReview      Boolean          @default(false) @map("needs_review")
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  createdBy  User      @relation("CompanyCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy  User      @relation("CompanyUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  archivedBy User?     @relation("CompanyArchiver", fields: [archivedByUserId], references: [id], onDelete: Restrict)
+  contacts   Contact[]
+  leads      Lead[]
+
+  @@index([nameNormalized])
+  @@index([createdByUserId])
+  @@map("companies")
+}
+
+/// A person at one company. Phone and email are not unique: colleagues share switchboards and inboxes.
+model Contact {
+  id              String    @id @default(uuid(7)) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  name            String
+  jobTitle        String?   @map("job_title")
+  phone           String?
+  phoneNormalized String?   @map("phone_normalized")
+  email           String?
+  whatsappNumber  String?   @map("whatsapp_number")
+  isDecisionMaker Boolean   @default(false) @map("is_decision_maker")
+  archivedAt      DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+  updatedByUserId String    @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  company    Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy  User          @relation("ContactCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy  User          @relation("ContactUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  primaryFor Lead[]        @relation("LeadPrimaryContact")
+  leadLinks  LeadContact[]
+
+  @@index([companyId, archivedAt])
+  @@map("contacts")
+}
+
+/// Other contacts involved in a deal. The primary contact lives on leads.primary_contact_id.
+model LeadContact {
+  leadId    String   @map("lead_id") @db.Uuid
+  contactId String   @map("contact_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  lead    Lead    @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Restrict)
+
+  @@id([leadId, contactId])
+  @@index([contactId])
+  @@map("lead_contacts")
+}
+
 /// One delivery record per lead follow-up instant. (lead_id, due_at) is unique, so a follow-up is
 /// reminded at most once no matter how often or from how many processes the worker runs.
 model LeadReminder {

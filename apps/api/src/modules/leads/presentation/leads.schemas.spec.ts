@@ -54,10 +54,19 @@ describe('lead request validation', () => {
     ).toBe(true);
   });
 
-  it('validates the duplicate-check body strictly', () => {
+  it('links a company and contacts by id, and refuses the old free-text company field', () => {
+    const id = '0192f1a0-0000-7000-8000-000000000001';
     expect(
-      duplicateCheckSchema.safeParse({ phone: '0712345678', companyName: 'Acme' }).success,
+      createLeadSchema.safeParse({ ...valid, companyId: id, primaryContactId: id }).success,
     ).toBe(true);
+    expect(createLeadSchema.safeParse({ ...valid, companyId: 'acme' }).success).toBe(false);
+    expect(createLeadSchema.safeParse({ ...valid, companyName: 'Acme' }).success).toBe(false);
+    expect(updateLeadSchema.safeParse({ companyName: 'Acme' }).success).toBe(false);
+    expect(updateLeadSchema.safeParse({ companyId: id }).success).toBe(false);
+  });
+
+  it('validates the duplicate-check body strictly', () => {
+    expect(duplicateCheckSchema.safeParse({ phone: '0712345678' }).success).toBe(true);
     expect(duplicateCheckSchema.safeParse({ excludeLeadId: 'not-a-uuid' }).success).toBe(false);
     expect(duplicateCheckSchema.safeParse({ ownerUserId: 'x' }).success).toBe(false);
   });

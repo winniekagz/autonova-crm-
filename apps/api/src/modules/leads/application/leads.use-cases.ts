@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { LeadStage, LeadTransitionSource } from '@autonova/enums';
 import type { Paginated, LeadDto } from '@autonova/contracts';
 import type { AuthenticatedUser } from '../../auth/domain/authenticated-user.js';
@@ -6,6 +11,10 @@ import { AuditService } from '../../audit/audit.service.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
 import { LeadRemindersRepository } from '../infrastructure/lead-reminders.repository.js';
 import { LeadsRepository } from '../infrastructure/leads.repository.js';
+import { CompaniesRepository } from '../../companies/infrastructure/companies.repository.js';
+import { ContactsRepository } from '../../companies/infrastructure/contacts.repository.js';
+import { companyVisibility } from '../../companies/application/company-scope.js';
+import { validateLeadLinks, type LeadLinks } from '../domain/lead-relationships.js';
 import { LeadDuplicatesService } from './lead-duplicates.service.js';
 import { scopeFor } from './lead-scope.js';
 import {
@@ -18,6 +27,7 @@ import type {
   DisqualifyLeadBody,
   LeadHistoryQuery,
   ListLeadsQuery,
+  LeadRelationshipsBody,
   LoseLeadBody,
   TransitionLeadBody,
   UpdateLeadBody,
@@ -25,6 +35,23 @@ import type {
 } from '../presentation/leads.schemas.js';
 
 const NOT_FOUND = { code: 'LEAD_NOT_FOUND', message: 'Lead not found' };
+const LINK_MESSAGES = {
+  CONTACT_REQUIRES_COMPANY: 'Choose a company before choosing contacts.',
+  DUPLICATE_CONTACT: 'Each contact can be linked to a lead only once.',
+  TOO_MANY_CONTACTS: 'A lead can have at most 20 additional contacts.',
+} as const;
+const COMPANY_UNAVAILABLE = {
+  code: 'LEAD_COMPANY_UNAVAILABLE',
+  message: 'That company is not available. Choose a company from your list.',
+};
+const CONTACT_UNAVAILABLE = {
+  code: 'LEAD_CONTACT_UNAVAILABLE',
+  message: 'Each contact must be an active contact of the lead’s company.',
+};
+const COMPANY_ARCHIVED_FOR_LEAD = {
+  code: 'LEAD_COMPANY_ARCHIVED',
+  message: 'That company is archived. Restore it before linking leads to it.',
+};
 const LIFECYCLE_MESSAGES = {
   INVALID_STAGE_TRANSITION: 'This lead cannot move between those stages.',
   QUALIFICATION_NOTE_REQUIRED: 'Add a note confirming the qualification result.',
@@ -43,6 +70,8 @@ export class LeadsUseCases {
     private readonly audit: AuditService,
     private readonly duplicates: LeadDuplicatesService,
     private readonly reminderRecords: LeadRemindersRepository,
+    private readonly companies: CompaniesRepository,
+    private readonly contacts: ContactsRepository,
   ) {}
 
   async list(query: ListLeadsQuery, user: AuthenticatedUser): Promise<Paginated<LeadDto>> {
@@ -61,7 +90,14 @@ export class LeadsUseCases {
     user: AuthenticatedUser,
     requestId?: string,
   ): Promise<LeadDto> {
-    const { acknowledgeDuplicates, ...fields } = input;
+    const { acknowledgeDuplicates, companyId, primaryContactId, additionalContactIds, ...fields } =
+      input;
+    const links = {
+      companyId: companyId ?? null,
+      primaryContactId: primaryContactId ?? null,
+      additionalContactIds: additionalContactIds ?? [],
+    };
+    await this.assertLinksAllowed(links, user);
     const duplicateAcknowledged = await this.duplicates.assertAcknowledged(
       this.duplicates.keysOf(fields),
       undefined,
@@ -69,7 +105,7 @@ export class LeadsUseCases {
       acknowledgeDuplicates === true,
     );
     const row = await this.prisma.$transaction(async (tx) => {
-      const created = await this.leads.create(fields, user.id, tx);
+      const created = await this.leads.create(fields, links, user.id, tx);
       await this.audit.record(tx, {
         action: 'lead.created',
         entityType: 'lead',
@@ -79,6 +115,7 @@ export class LeadsUseCases {
           stage: created.stage,
           source: created.source,
           ownerUserId: created.ownerUserId,
+          companyId: links.companyId,
           duplicateAcknowledged,
         },
         requestId,
@@ -124,30 +161,96 @@ export class LeadsUseCases {
     return dto;
   }
 
-  /** Only a phone/company that actually changes is checked, so editing a known duplicate stays possible. */
+  /** Only a phone that actually changes is checked, so editing a known duplicate stays possible. */
   private async checkChangedKeys(
     id: string,
     fields: UpdateLeadFields,
     user: AuthenticatedUser,
     acknowledged: boolean | undefined,
   ): Promise<boolean> {
-    if (fields.phone === undefined && fields.companyName === undefined) return false;
+    if (fields.phone === undefined) return false;
     const current = await this.leads.findForLifecycle(id, scopeFor(user));
     if (!current) throw new NotFoundException(NOT_FOUND);
     const next = this.duplicates.keysOf(fields);
     return this.duplicates.assertAcknowledged(
-      {
-        phone:
-          fields.phone !== undefined && next.phone !== current.phoneNormalized ? next.phone : null,
-        company:
-          fields.companyName !== undefined && next.company !== current.companyNameNormalized
-            ? next.company
-            : null,
-      },
+      { phone: next.phone !== current.phoneNormalized ? next.phone : null },
       id,
       user,
       acknowledged === true,
     );
+  }
+
+  /**
+   * Changes the company and contacts of a lead. The caller must own the lead (Directors: any lead) and
+   * be allowed to see the company; contacts must be active contacts of that same company.
+   */
+  async setRelationships(
+    id: string,
+    input: LeadRelationshipsBody,
+    user: AuthenticatedUser,
+    requestId?: string,
+  ): Promise<LeadDto> {
+    const links = {
+      companyId: input.companyId,
+      primaryContactId: input.primaryContactId,
+      additionalContactIds: input.additionalContactIds,
+    };
+    await this.assertLinksAllowed(links, user);
+    await this.prisma.$transaction(async (tx) => {
+      const current = await this.leads.findForLifecycle(id, scopeFor(user), tx);
+      if (!current) throw new NotFoundException(NOT_FOUND);
+      const before = await this.leads.linksOf(tx, id);
+      await this.leads.setRelationships(tx, id, links);
+      await this.audit.record(tx, {
+        action: 'lead.relationships_changed',
+        entityType: 'lead',
+        entityId: id,
+        actorUserId: user.id,
+        oldValues: {
+          companyId: before?.companyId ?? null,
+          primaryContactId: before?.primaryContactId ?? null,
+          additionalContactCount: before?.contacts.length ?? 0,
+        },
+        newValues: {
+          companyId: links.companyId,
+          primaryContactId: links.primaryContactId,
+          additionalContactCount: links.additionalContactIds.length,
+        },
+        requestId,
+      });
+    });
+    const dto = await this.leads.get(id, scopeFor(user));
+    if (!dto) throw new NotFoundException(NOT_FOUND);
+    return dto;
+  }
+
+  /**
+   * Validates a company/contact selection against the data and the caller's visibility. Unknown, invisible
+   * and foreign-company ids all produce the same answer, so ids cannot be probed.
+   */
+  private async assertLinksAllowed(links: LeadLinks, user: AuthenticatedUser): Promise<void> {
+    const shape = validateLeadLinks(links);
+    if (!shape.ok) {
+      throw new BadRequestException({
+        code: 'VALIDATION_FAILED',
+        message: LINK_MESSAGES[shape.code],
+        details: [{ path: 'companyId', message: LINK_MESSAGES[shape.code] }],
+      });
+    }
+    if (!links.companyId) return;
+    const company = await this.companies.findVisible(links.companyId, companyVisibility(user));
+    if (!company) throw new ConflictException(COMPANY_UNAVAILABLE);
+    if (company.archivedAt) throw new ConflictException(COMPANY_ARCHIVED_FOR_LEAD);
+    const wanted = [
+      ...(links.primaryContactId ? [links.primaryContactId] : []),
+      ...links.additionalContactIds,
+    ];
+    if (wanted.length === 0) return;
+    const found = await this.contacts.contactsOfCompany(links.companyId, wanted);
+    const active = new Set(found.filter((row) => row.archivedAt === null).map((row) => row.id));
+    if (wanted.some((contactId) => !active.has(contactId))) {
+      throw new ConflictException(CONTACT_UNAVAILABLE);
+    }
   }
 
   async history(id: string, query: LeadHistoryQuery, user: AuthenticatedUser) {

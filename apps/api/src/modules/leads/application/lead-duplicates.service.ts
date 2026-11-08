@@ -1,12 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import type { LeadDuplicateCheckResult } from '@autonova/contracts';
 import type { AuthenticatedUser } from '../../auth/domain/authenticated-user.js';
-import {
-  matchedOn,
-  normalizeCompanyName,
-  normalizePhone,
-  type LeadKeys,
-} from '../domain/lead-duplicates.js';
+import { matchedOn, normalizePhone, type LeadKeys } from '../domain/lead-duplicates.js';
 import { LeadsRepository } from '../infrastructure/leads.repository.js';
 import type { DuplicateCheckBody } from '../presentation/leads.schemas.js';
 import { scopeFor } from './lead-scope.js';
@@ -14,7 +9,7 @@ import { scopeFor } from './lead-scope.js';
 export const DUPLICATE_SUSPECTED = {
   code: 'LEAD_DUPLICATE_SUSPECTED',
   message:
-    'A lead with the same phone number or company already exists. Review the matches, then confirm to save anyway.',
+    'A lead with the same phone number already exists. Review the matches, then confirm to save anyway.',
 };
 const MAX_LISTED = 10;
 
@@ -27,8 +22,8 @@ const MAX_LISTED = 10;
 export class LeadDuplicatesService {
   constructor(private readonly leads: LeadsRepository) {}
 
-  keysOf(input: { phone?: string | null; companyName?: string | null }): LeadKeys {
-    return { phone: normalizePhone(input.phone), company: normalizeCompanyName(input.companyName) };
+  keysOf(input: { phone?: string | null }): LeadKeys {
+    return { phone: normalizePhone(input.phone) };
   }
 
   async check(
@@ -63,7 +58,7 @@ export class LeadDuplicatesService {
       candidates: visible.slice(0, MAX_LISTED).map((row) => ({
         id: row.id,
         name: row.name,
-        companyName: row.companyName,
+        companyName: row.company?.name ?? row.companyName,
         phone: row.phone,
         stage: row.stage,
         ownerName: row.owner.fullName,

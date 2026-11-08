@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchedOn, normalizeCompanyName, normalizePhone } from './lead-duplicates.js';
+import { matchedOn, normalizePhone } from './lead-duplicates.js';
 
 describe('normalizePhone', () => {
   it.each([
@@ -26,42 +26,14 @@ describe('normalizePhone', () => {
   });
 });
 
-describe('normalizeCompanyName', () => {
-  it.each([
-    ['  ACME   Ltd. ', 'acme'],
-    ['Acme Limited', 'acme'],
-    ['acme', 'acme'],
-    ["Njeri's Café & Co.", 'njeri s café co'],
-    ['Rural Water Management Solutions(K) Limited', 'rural water management solutions k'],
-  ])('reads %s as %s', (raw, key) => {
-    expect(normalizeCompanyName(raw)).toBe(key);
-  });
-
-  it('only drops a trailing legal suffix, not a word inside the name', () => {
-    expect(normalizeCompanyName('Limited Edition Prints')).toBe('limited edition prints');
-  });
-
-  it.each([undefined, null, '', '  ', '...'])('gives no key for %s', (raw) => {
-    expect(normalizeCompanyName(raw)).toBeNull();
-  });
-});
-
 describe('matchedOn', () => {
-  const row = { phoneNormalized: '254712345678', companyNameNormalized: 'acme' };
-  it('reports every key that matches', () => {
-    expect(matchedOn(row, { phone: '254712345678', company: 'acme' })).toEqual([
-      'PHONE',
-      'COMPANY',
-    ]);
-    expect(matchedOn(row, { phone: '254712345678', company: 'other' })).toEqual(['PHONE']);
-    expect(matchedOn(row, { phone: null, company: 'acme' })).toEqual(['COMPANY']);
+  const row = { phoneNormalized: '254712345678' };
+  it('matches on the phone key', () => {
+    expect(matchedOn(row, { phone: '254712345678' })).toEqual(['PHONE']);
+    expect(matchedOn(row, { phone: '254712345679' })).toEqual([]);
   });
   it('never matches on a missing key', () => {
-    expect(
-      matchedOn(
-        { phoneNormalized: null, companyNameNormalized: null },
-        { phone: null, company: null },
-      ),
-    ).toEqual([]);
+    expect(matchedOn({ phoneNormalized: null }, { phone: null })).toEqual([]);
+    expect(matchedOn(row, { phone: null })).toEqual([]);
   });
 });

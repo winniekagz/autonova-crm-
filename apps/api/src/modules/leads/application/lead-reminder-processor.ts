@@ -96,7 +96,7 @@ export class LeadReminderProcessor {
         recipientName: reminder.recipient.fullName,
         leadId: reminder.lead.id,
         leadName: reminder.lead.name,
-        companyName: reminder.lead.companyName,
+        companyName: reminder.lead.company?.name ?? reminder.lead.companyName,
         nextAction: reminder.lead.nextAction,
         dueAtNairobi: formatNairobiDateTime(reminder.dueAt),
       });

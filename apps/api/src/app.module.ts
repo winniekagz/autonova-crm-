@@ -9,6 +9,7 @@ import { HealthModule } from './health/health.module.js';
 import { AuditModule } from './modules/audit/audit.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { UsersModule } from './modules/users/users.module.js';
+import { CompaniesModule } from './modules/companies/companies.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
 import { EmailModule } from './modules/email/email.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -51,6 +52,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     AuditModule,
     AuthModule,
     UsersModule,
+    CompaniesModule,
     LeadsModule,
     EmailModule,
     HealthModule,

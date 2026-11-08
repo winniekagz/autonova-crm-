@@ -27,12 +27,26 @@ const lifecycleConflict = (codes: readonly string[], when: string): DocumentedEr
   when: `${when} \`LEAD_STAGE_CHANGED\`: someone else moved the lead meanwhile; reload and retry.`,
 });
 
+const contactRefSchema: SchemaObject = {
+  type: 'object',
+  required: ['id', 'name', 'jobTitle', 'archived'],
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    name: { type: 'string' },
+    jobTitle: { type: 'string', nullable: true },
+    archived: { type: 'boolean' },
+  },
+};
+
 const leadSchema: SchemaObject = {
   type: 'object',
   required: [
     'id',
     'name',
     'companyName',
+    'company',
+    'primaryContact',
+    'additionalContacts',
     'phone',
     'email',
     'source',
@@ -59,7 +73,24 @@ const leadSchema: SchemaObject = {
   properties: {
     id: { type: 'string', format: 'uuid' },
     name: { type: 'string' },
-    companyName: { type: 'string', nullable: true },
+    companyName: {
+      type: 'string',
+      nullable: true,
+      description:
+        'The linked company’s name, or the original text for a lead not linked to a company.',
+    },
+    company: {
+      type: 'object',
+      nullable: true,
+      required: ['id', 'name', 'archived'],
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        name: { type: 'string' },
+        archived: { type: 'boolean' },
+      },
+    },
+    primaryContact: { ...contactRefSchema, nullable: true },
+    additionalContacts: { type: 'array', items: contactRefSchema },
     phone: { type: 'string', nullable: true },
     email: { type: 'string', format: 'email', nullable: true },
     source: {
@@ -198,13 +229,13 @@ export const DocListLeads = () =>
 const duplicateSuspected: DocumentedError = {
   status: 409,
   codes: ['LEAD_DUPLICATE_SUSPECTED'],
-  when: 'A visible or hidden lead already has the same normalised phone or company. Review via POST /leads/duplicate-check, then resend with `acknowledgeDuplicates: true`.',
+  when: 'A visible or hidden lead already has the same normalised phone. Review via POST /leads/duplicate-check, then resend with `acknowledgeDuplicates: true`.',
 };
 
 export const DocCreateLead = () =>
   applyDecorators(
     ApiResponse({ status: 201, description: 'Created lead record.', schema: leadSchema }),
-    ApiErrors(...privateErrors, VALIDATION_ERROR, duplicateSuspected),
+    ApiErrors(...privateErrors, VALIDATION_ERROR, duplicateSuspected, relationshipConflict),
   );
 
 const candidateSchema: SchemaObject = {
@@ -276,6 +307,18 @@ const reminderSchema: SchemaObject = {
     recipientName: { type: 'string' },
   },
 };
+
+const relationshipConflict: DocumentedError = {
+  status: 409,
+  codes: ['LEAD_COMPANY_UNAVAILABLE', 'LEAD_COMPANY_ARCHIVED', 'LEAD_CONTACT_UNAVAILABLE'],
+  when: 'The company is unknown, not visible to the caller or archived, or a contact is not an active contact of that company. Unknown and invisible ids are not distinguished.',
+};
+
+export const DocSetLeadRelationships = () =>
+  applyDecorators(
+    leadResponse('Lead with its updated company and contacts.'),
+    ApiErrors(...privateErrors, VALIDATION_ERROR, leadNotFound, relationshipConflict),
+  );
 
 export const DocLeadReminders = () =>
   applyDecorators(

@@ -33,14 +33,17 @@ import {
   DocListLeads,
   DocMarkLeadLost,
   DocTransitionLead,
+  DocSetLeadRelationships,
   DocUpdateLead,
 } from './leads.docs.js';
+import { createLeadBody, leadRelationshipsBody, updateLeadBody } from './leads.bodies.js';
 import { LeadDuplicatesService } from '../application/lead-duplicates.service.js';
 import { LeadsUseCases } from '../application/leads.use-cases.js';
 import {
   createLeadSchema,
   duplicateCheckSchema,
   leadIdSchema,
+  leadRelationshipsSchema,
   leadRemindersQuerySchema,
   listLeadsQuerySchema,
   updateLeadSchema,
@@ -52,6 +55,7 @@ import {
   type DuplicateCheckBody,
   type DisqualifyLeadBody,
   type LeadHistoryQuery,
+  type LeadRelationshipsBody,
   type ListLeadsQuery,
   type LoseLeadBody,
   type TransitionLeadBody,
@@ -107,80 +111,7 @@ export class LeadsController {
     description:
       'The server assigns the lead to the current user and sets its initial stage. For source `REFERRAL`, include `referrerName`. Amounts are decimal strings; do not send currency symbols.',
   })
-  @ApiBody({
-    examples: {
-      referralLead: {
-        summary: 'Create a referral lead (use a unique email for each run)',
-        value: {
-          name: 'Northstar Clinic Website',
-          companyName: 'Northstar Clinic',
-          email: 'contact@example.test',
-          source: 'REFERRAL',
-          referrerName: 'Jane Mwangi',
-          productInterest: 'RETAIL_POS',
-          estimatedValue: '12500.50',
-          currency: 'KES',
-          nextAction: 'Schedule discovery call',
-          nextActionAt: '2026-11-10T08:00:00.000Z',
-          probability: 20,
-        },
-      },
-    },
-    schema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['name', 'source', 'currency', 'nextAction', 'nextActionAt'],
-      properties: {
-        name: { type: 'string', minLength: 1, maxLength: 200, example: 'Northstar Clinic Website' },
-        companyName: { type: 'string' },
-        phone: { type: 'string' },
-        email: { type: 'string', format: 'email' },
-        source: {
-          type: 'string',
-          enum: [
-            'REFERRAL',
-            'INSTAGRAM',
-            'WEBSITE',
-            'WALK_IN',
-            'EVENT',
-            'COLD_OUTREACH',
-            'EXISTING_CLIENT_UPSELL',
-          ],
-        },
-        referrerName: {
-          type: 'string',
-          example: 'Jane Mwangi',
-          description: 'Required when source is REFERRAL.',
-        },
-        productInterest: {
-          type: 'string',
-          enum: [
-            'RETAIL_POS',
-            'CAR_WASH_AUTOMATION',
-            'ERP',
-            'VISITOR_SECURITY_SYSTEM',
-            'HIRING_PLATFORM',
-            'CUSTOM_BUILD',
-          ],
-        },
-        acknowledgeDuplicates: {
-          type: 'boolean',
-          description:
-            'Send true after the user reviewed the possible duplicates reported by a 409 LEAD_DUPLICATE_SUSPECTED.',
-        },
-        notes: { type: 'string' },
-        estimatedValue: {
-          type: 'string',
-          example: '12500.50',
-          description: 'Non-negative amount with up to two decimal places.',
-        },
-        currency: { type: 'string', enum: ['KES', 'USD'] },
-        nextAction: { type: 'string' },
-        nextActionAt: { type: 'string', format: 'date-time', example: '2026-11-10T08:00:00.000Z' },
-        probability: { type: 'integer', minimum: 0, maximum: 100 },
-      },
-    },
-  })
+  @ApiBody(createLeadBody)
   @DocCreateLead()
   create(
     @Body({ schema: createLeadSchema }) body: CreateLeadBody,
@@ -194,9 +125,9 @@ export class LeadsController {
   @HttpCode(HttpStatus.OK)
   @RequirePermission(PermissionKey.LeadsCreate)
   @ApiOperation({
-    summary: 'Check a phone number and company name against existing leads',
+    summary: 'Check a phone number against existing leads',
     description:
-      'Phone numbers are compared by digits (so `0712 345 678` equals `+254712345678`); company names ignore case, spacing, punctuation and a trailing Ltd/Limited. Only leads the caller may read are described; matches in other pipelines are only counted.',
+      'Phone numbers are compared by digits (so `0712 345 678` equals `+254712345678`). Several leads for one company are expected, so the company is not compared here; see `POST /companies/duplicate-check`. Only leads the caller may read are described; matches in other pipelines are only counted.',
   })
   @ApiBody({
     schema: {
@@ -204,7 +135,6 @@ export class LeadsController {
       additionalProperties: false,
       properties: {
         phone: { type: 'string', maxLength: 40 },
-        companyName: { type: 'string', maxLength: 200 },
         excludeLeadId: { type: 'string', format: 'uuid', description: 'The lead being edited.' },
       },
     },
@@ -284,6 +214,25 @@ export class LeadsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Paginated<LeadReminderDto>> {
     return this.leads.reminders(id, query, user);
+  }
+
+  @Patch(':id/relationships')
+  @RequirePermission(PermissionKey.LeadsUpdate, PermissionKey.CompaniesRead)
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOperation({
+    summary: 'Link a lead to a company and its contacts',
+    description:
+      'Replaces the lead’s company, primary contact and additional contacts in one step. `companyId: null` makes it an individual prospect (and requires no contacts). The company must be visible to the caller and not archived; every contact must be an active contact of that company. BD users can change only their own leads.',
+  })
+  @ApiBody(leadRelationshipsBody)
+  @DocSetLeadRelationships()
+  setRelationships(
+    @Param('id', { schema: leadIdSchema }) id: string,
+    @Body({ schema: leadRelationshipsSchema }) body: LeadRelationshipsBody,
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() request: Request,
+  ): Promise<LeadDto> {
+    return this.leads.setRelationships(id, body, user, requestIdOf(request));
   }
 
   @Post(':id/transitions')
@@ -425,53 +374,7 @@ export class LeadsController {
       'Only supplied fields change. Ownership and pipeline stage cannot be changed through this endpoint. BD users can update only their own leads.',
   })
   @ApiParam({ name: 'id', format: 'uuid', description: 'Lead UUID returned from create or list.' })
-  @ApiBody({
-    examples: {
-      followUp: {
-        summary: 'Update only the next follow-up action',
-        value: { nextAction: 'Send proposal outline' },
-      },
-    },
-    schema: {
-      type: 'object',
-      additionalProperties: false,
-      minProperties: 1,
-      properties: {
-        name: { type: 'string', minLength: 1, maxLength: 200, example: 'Northstar Clinic Website' },
-        companyName: { type: 'string' },
-        phone: { type: 'string' },
-        email: { type: 'string', format: 'email' },
-        source: {
-          type: 'string',
-          enum: [
-            'REFERRAL',
-            'INSTAGRAM',
-            'WEBSITE',
-            'WALK_IN',
-            'EVENT',
-            'COLD_OUTREACH',
-            'EXISTING_CLIENT_UPSELL',
-          ],
-        },
-        referrerName: {
-          type: 'string',
-          example: 'Jane Mwangi',
-          description: 'Required when source is REFERRAL.',
-        },
-        productInterest: { type: 'string' },
-        notes: { type: 'string' },
-        estimatedValue: {
-          type: 'string',
-          example: '12500.50',
-          description: 'Non-negative amount with up to two decimal places.',
-        },
-        currency: { type: 'string', enum: ['KES', 'USD'] },
-        nextAction: { type: 'string' },
-        nextActionAt: { type: 'string', format: 'date-time', example: '2026-11-10T08:00:00.000Z' },
-        probability: { type: 'integer', minimum: 0, maximum: 100 },
-      },
-    },
-  })
+  @ApiBody(updateLeadBody)
   @DocUpdateLead()
   update(
     @Param('id', { schema: leadIdSchema }) id: string,

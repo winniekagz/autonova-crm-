@@ -19,13 +19,18 @@ describe('ROLE_PERMISSIONS', () => {
     }
   });
 
-  it('grants only the PRD-explicit own-lead capability to Business Development', () => {
+  it('grants Business Development own leads and company create/edit, but not archiving', () => {
     expect(ROLE_PERMISSIONS[SystemRoleKey.BusinessDevelopment]).toEqual([
       PermissionKey.LeadsList,
       PermissionKey.LeadsRead,
       PermissionKey.LeadsCreate,
       PermissionKey.LeadsUpdate,
+      PermissionKey.CompaniesList,
+      PermissionKey.CompaniesRead,
+      PermissionKey.CompaniesCreate,
+      PermissionKey.CompaniesUpdate,
     ]);
+    expect(ROLE_PERMISSIONS[SystemRoleKey.Director]).toContain(PermissionKey.CompaniesArchive);
     expect(ROLE_PERMISSIONS[SystemRoleKey.TechnicalLead]).toEqual([]);
     expect(ROLE_PERMISSIONS[SystemRoleKey.Finance]).toEqual([]);
   });

@@ -32,6 +32,11 @@ export const PermissionKey = {
   LeadsRead: 'leads:read',
   LeadsCreate: 'leads:create',
   LeadsUpdate: 'leads:update',
+  CompaniesList: 'companies:list',
+  CompaniesRead: 'companies:read',
+  CompaniesCreate: 'companies:create',
+  CompaniesUpdate: 'companies:update',
+  CompaniesArchive: 'companies:archive',
 } as const;
 export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];
 
@@ -58,6 +63,24 @@ export const LeadSource = {
   ExistingClientUpsell: 'EXISTING_CLIENT_UPSELL',
 } as const;
 export type LeadSource = (typeof LeadSource)[keyof typeof LeadSource];
+
+/** Industry classification for a company. Broad on purpose: it is for filtering, not for reporting detail. */
+export const CompanyIndustry = {
+  Retail: 'RETAIL',
+  Hospitality: 'HOSPITALITY',
+  Automotive: 'AUTOMOTIVE',
+  Manufacturing: 'MANUFACTURING',
+  Logistics: 'LOGISTICS',
+  Education: 'EDUCATION',
+  Healthcare: 'HEALTHCARE',
+  Finance: 'FINANCE',
+  Agriculture: 'AGRICULTURE',
+  RealEstate: 'REAL_ESTATE',
+  Technology: 'TECHNOLOGY',
+  Government: 'GOVERNMENT',
+  Other: 'OTHER',
+} as const;
+export type CompanyIndustry = (typeof CompanyIndustry)[keyof typeof CompanyIndustry];
 
 /** PRD §4.1 product catalogue. Values are stable keys; show people `PRODUCT_INTEREST_LABELS`. */
 export const ProductInterest = {

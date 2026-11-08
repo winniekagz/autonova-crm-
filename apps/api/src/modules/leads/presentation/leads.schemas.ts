@@ -10,6 +10,7 @@ import { paginationQuerySchema, uuidSchema } from '@autonova/validation';
 import { z } from 'zod';
 
 const optionalText = (max: number) => z.string().trim().max(max).optional();
+const optionalId = z.uuid().nullable().optional();
 const productInterestSchema = z.enum(enumValues(ProductInterest));
 const acknowledgeDuplicates = z.boolean().optional();
 const valueSchema = z
@@ -19,7 +20,9 @@ const valueSchema = z
 export const createLeadSchema = z
   .object({
     name: z.string().trim().min(1).max(200),
-    companyName: optionalText(200),
+    companyId: optionalId,
+    primaryContactId: optionalId,
+    additionalContactIds: z.array(z.uuid()).max(20).optional(),
     phone: optionalText(40),
     email: z.union([z.email().max(254), z.literal('')]).optional(),
     source: z.enum(enumValues(LeadSource)),
@@ -42,7 +45,6 @@ export const createLeadSchema = z
 export const updateLeadSchema = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
-    companyName: optionalText(200),
     phone: optionalText(40),
     email: z.union([z.email().max(254), z.literal('')]).optional(),
     source: z.enum(enumValues(LeadSource)).optional(),
@@ -74,8 +76,15 @@ export const leadIdSchema = uuidSchema;
 export const duplicateCheckSchema = z
   .object({
     phone: optionalText(40),
-    companyName: optionalText(200),
     excludeLeadId: uuidSchema.optional(),
+  })
+  .strict();
+
+export const leadRelationshipsSchema = z
+  .object({
+    companyId: z.uuid().nullable(),
+    primaryContactId: z.uuid().nullable(),
+    additionalContactIds: z.array(z.uuid()).max(20),
   })
   .strict();
 
@@ -107,7 +116,11 @@ export const leadRemindersQuerySchema = paginationQuerySchema;
 export type CreateLeadBody = z.infer<typeof createLeadSchema>;
 export type UpdateLeadBody = z.infer<typeof updateLeadSchema>;
 /** The lead's own fields: the request minus the duplicate acknowledgement, which is not stored. */
-export type CreateLeadFields = Omit<CreateLeadBody, 'acknowledgeDuplicates'>;
+export type CreateLeadFields = Omit<
+  CreateLeadBody,
+  'acknowledgeDuplicates' | 'companyId' | 'primaryContactId' | 'additionalContactIds'
+>;
+export type LeadRelationshipsBody = z.infer<typeof leadRelationshipsSchema>;
 export type UpdateLeadFields = Omit<UpdateLeadBody, 'acknowledgeDuplicates'>;
 export type DuplicateCheckBody = z.infer<typeof duplicateCheckSchema>;
 export type ListLeadsQuery = z.infer<typeof listLeadsQuerySchema>;

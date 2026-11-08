@@ -21,6 +21,11 @@ export const ROLE_PERMISSIONS: Record<SystemRoleKey, readonly PermissionKey[]> =
     PermissionKey.LeadsRead,
     PermissionKey.LeadsCreate,
     PermissionKey.LeadsUpdate,
+    PermissionKey.CompaniesList,
+    PermissionKey.CompaniesRead,
+    PermissionKey.CompaniesCreate,
+    PermissionKey.CompaniesUpdate,
+    PermissionKey.CompaniesArchive,
   ],
   // PRD §2.2–2.3 and §4.1 explicitly grant BD users own leads and own pipeline.
   [SystemRoleKey.BusinessDevelopment]: [
@@ -28,6 +33,11 @@ export const ROLE_PERMISSIONS: Record<SystemRoleKey, readonly PermissionKey[]> =
     PermissionKey.LeadsRead,
     PermissionKey.LeadsCreate,
     PermissionKey.LeadsUpdate,
+    // PRD §4.2: BD creates and edits companies; visibility is limited to their own (docs/06).
+    PermissionKey.CompaniesList,
+    PermissionKey.CompaniesRead,
+    PermissionKey.CompaniesCreate,
+    PermissionKey.CompaniesUpdate,
   ],
   [SystemRoleKey.TechnicalLead]: [],
   [SystemRoleKey.Finance]: [],
@@ -45,4 +55,11 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   [PermissionKey.LeadsRead]: 'View a lead in the caller’s permitted pipeline scope',
   [PermissionKey.LeadsCreate]: 'Create a lead owned by the caller',
   [PermissionKey.LeadsUpdate]: 'Update a lead in the caller’s permitted pipeline scope',
+  [PermissionKey.CompaniesList]: 'List companies in the caller’s permitted scope',
+  [PermissionKey.CompaniesRead]:
+    'View a company, its contacts and its leads in the caller’s permitted scope',
+  [PermissionKey.CompaniesCreate]: 'Create a company and contacts at a company',
+  [PermissionKey.CompaniesUpdate]:
+    'Edit a company and its contacts in the caller’s permitted scope',
+  [PermissionKey.CompaniesArchive]: 'Archive a company or contact',
 };
