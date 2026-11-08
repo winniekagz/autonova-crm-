@@ -1,6 +1,8 @@
-import { useId, type InputHTMLAttributes } from 'react';
+import { useId, type ComponentProps } from 'react';
 
-interface TextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
+// `ComponentProps` (not InputHTMLAttributes) so `ref` is part of the type: React Hook Form's
+// `register()` hands the field a ref, and React 19 passes it through as an ordinary prop.
+interface TextFieldProps extends ComponentProps<'input'> {
   label: string;
   error?: string | undefined;
 }

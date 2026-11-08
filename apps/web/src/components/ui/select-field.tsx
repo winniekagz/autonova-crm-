@@ -1,6 +1,6 @@
-import { useId, type SelectHTMLAttributes } from 'react';
+import { useId, type ComponentProps } from 'react';
 
-interface SelectFieldProps extends SelectHTMLAttributes<HTMLSelectElement> {
+interface SelectFieldProps extends ComponentProps<'select'> {
   label: string;
 }
 

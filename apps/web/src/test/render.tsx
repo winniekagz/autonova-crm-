@@ -1,8 +1,10 @@
 import type { MeResponse, UserDto } from '@autonova/contracts';
+import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 import { vi } from 'vitest';
 import { AuthContext, type AuthState } from '@/features/auth/auth-context';
+import { createQueryClient } from '@/lib/query-client';
 
 export const DIRECTOR: MeResponse = {
   id: 'dir-1',
@@ -53,7 +55,14 @@ export const ROLES = [
   { key: 'technical_lead', name: 'Technical Lead', description: 'Scope' },
 ];
 
-export function renderAs(me: MeResponse | null, ui: ReactElement) {
+/** A fresh cache per render with retries off, so a failing request fails the test immediately. */
+export const createTestQueryClient = () => createQueryClient({ retry: false });
+
+export function renderAs(
+  me: MeResponse | null,
+  ui: ReactElement,
+  queryClient: QueryClient = createTestQueryClient(),
+) {
   const expireSession = vi.fn();
   const value: AuthState = {
     status: me ? 'authenticated' : 'unauthenticated',
@@ -64,11 +73,14 @@ export function renderAs(me: MeResponse | null, ui: ReactElement) {
     retryRestore: vi.fn(),
     getAccessToken: async () => 'test-token',
     renewAccessToken: async () => 'renewed-token',
+    reloadProfile: async () => me ?? DIRECTOR,
   };
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    <QueryClientProvider client={queryClient}>
+      <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+    </QueryClientProvider>
   );
-  return { ...render(ui, { wrapper }), expireSession };
+  return { ...render(ui, { wrapper }), expireSession, queryClient };
 }
 
 /** Resolves the three shapes fetch accepts without relying on implicit stringification. */

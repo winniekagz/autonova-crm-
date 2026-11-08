@@ -1,8 +1,19 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { useState, type ReactNode } from 'react';
 import { AuthProvider } from '@/features/auth/auth-context';
+import { ClearCacheOnSignOut } from '@/features/auth/clear-cache-on-sign-out';
+import { createQueryClient } from '@/lib/query-client';
 
 export function Providers({ children }: { children: ReactNode }) {
-  return <AuthProvider>{children}</AuthProvider>;
+  const [queryClient] = useState(() => createQueryClient());
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <ClearCacheOnSignOut />
+        {children}
+      </AuthProvider>
+    </QueryClientProvider>
+  );
 }
