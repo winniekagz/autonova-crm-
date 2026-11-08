@@ -1,110 +1,73 @@
 'use client';
 
-import type { RoleDto, UserDto } from '@autonova/contracts';
-import { PermissionKey } from '@autonova/enums';
-import { emailSchema, fullNameSchema } from '@autonova/validation';
+import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
 import { useAuth } from '@/features/auth/auth-context';
 import { can } from '@/features/auth/permissions';
-import { useAuthedRequest } from '@/features/auth/use-authed-request';
-import * as usersApi from './api';
+import { PermissionKey } from '@autonova/enums';
+import { applyServerFieldErrors } from '@/lib/form-errors';
+import { CREATE_USER_FIELDS, createUserSchema, type CreateUserValues } from './create-user-schema';
 import { isDuplicateEmail, isPermissionDenied, userErrorMessage } from './error-messages';
 import { PermissionDenied } from './permission-denied';
 import { RolePicker } from './role-picker';
-
-type FieldErrors = { email?: string; fullName?: string; roles?: string };
+import { useCreateUser, useRolesQuery } from './users.queries';
 
 export function CreateUserForm() {
   const { me } = useAuth();
-  const request = useAuthedRequest();
   const allowed = can(me, PermissionKey.UsersCreate);
-
-  const [roles, setRoles] = useState<RoleDto[] | null>(null);
-  const [rolesError, setRolesError] = useState<string | null>(null);
-  const [email, setEmail] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [selected, setSelected] = useState<string[]>([]);
-  const [errors, setErrors] = useState<FieldErrors>({});
+  const rolesQuery = useRolesQuery(allowed);
+  const createUser = useCreateUser();
   const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [created, setCreated] = useState<UserDto | null>(null);
-  const [denied, setDenied] = useState(false);
 
-  useEffect(() => {
-    if (!allowed) return;
-    let cancelled = false;
-    request((token) => usersApi.listRoles(token))
-      .then((result) => {
-        if (!cancelled) setRoles(result);
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        if (isPermissionDenied(error)) setDenied(true);
-        else setRolesError(userErrorMessage(error));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [allowed, request]);
+  const {
+    register,
+    handleSubmit,
+    control,
+    reset,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<CreateUserValues>({
+    resolver: zodResolver(createUserSchema),
+    defaultValues: { fullName: '', email: '', roles: [] },
+  });
 
+  const denied = isPermissionDenied(rolesQuery.error) || isPermissionDenied(createUser.error);
   if (!allowed || denied) return <PermissionDenied what="invite users" />;
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (submitting) return;
-
-    const next: FieldErrors = {};
-    const emailResult = emailSchema.safeParse(email);
-    const nameResult = fullNameSchema.safeParse(fullName);
-    if (!emailResult.success) next.email = 'Enter a valid email address.';
-    if (!nameResult.success) next.fullName = nameResult.error.issues[0]?.message ?? 'Enter a name.';
-    if (selected.length === 0) next.roles = 'Select at least one role.';
-    setErrors(next);
+  const onSubmit = handleSubmit(async (values) => {
+    if (createUser.isPending) return;
     setFormError(null);
-    if (!emailResult.success || !nameResult.success || selected.length === 0) return;
-
-    setSubmitting(true);
     try {
-      const user = await request((token) =>
-        usersApi.createUser(token, {
-          email: emailResult.data,
-          fullName: nameResult.data,
-          roles: selected,
-        }),
-      );
-      setCreated(user);
+      await createUser.mutateAsync(values);
     } catch (error) {
-      // Input is preserved on failure so nothing has to be retyped.
-      if (isDuplicateEmail(error)) setErrors({ email: userErrorMessage(error) });
-      else if (isPermissionDenied(error)) setDenied(true);
-      else setFormError(userErrorMessage(error));
-    } finally {
-      setSubmitting(false);
+      // Everything typed stays in the form. A 403 is shown as "access denied" above.
+      if (isPermissionDenied(error)) return;
+      if (isDuplicateEmail(error))
+        setError('email', { type: 'server', message: userErrorMessage(error) });
+      else if (!applyServerFieldErrors(error, setError, CREATE_USER_FIELDS)) {
+        setFormError(userErrorMessage(error));
+      }
     }
-  }
+  });
 
   function inviteAnother() {
-    setCreated(null);
-    setEmail('');
-    setFullName('');
-    setSelected([]);
-    setErrors({});
+    createUser.reset();
+    reset();
     setFormError(null);
   }
 
+  const created = createUser.data;
   if (created) {
     return (
       <div className="max-w-xl space-y-4">
         <Alert tone="success">
-          <p className="font-medium">{created.fullName} has been added as an invited user.</p>
-          <p className="mt-1">
-            They cannot sign in yet: email invitations are not available, so no password has been
-            set. The account stays invited until that feature exists.
-          </p>
+          <p className="font-medium">Invitation email sent to {created.email}.</p>
+          <p className="mt-1">The setup link expires in 48 hours and can only be used once.</p>
         </Alert>
         <div className="flex flex-wrap gap-3">
           <Link href={`/users/${created.id}`} className="text-primary underline">
@@ -121,6 +84,7 @@ export function CreateUserForm() {
     );
   }
 
+  const roles = rolesQuery.data;
   return (
     <div className="max-w-xl">
       <h1 className="text-2xl font-semibold text-navy">Invite user</h1>
@@ -132,36 +96,46 @@ export function CreateUserForm() {
       <form onSubmit={onSubmit} noValidate className="mt-5 space-y-4" aria-label="Invite user">
         <TextField
           label="Full name"
-          name="fullName"
           autoComplete="off"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          error={errors.fullName}
+          error={errors.fullName?.message}
           required
+          {...register('fullName')}
         />
         <TextField
           label="Email"
           type="email"
-          name="email"
           autoComplete="off"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          error={errors.email}
+          error={
+            errors.email?.type === 'server'
+              ? errors.email.message
+              : errors.email
+                ? 'Enter a valid email address.'
+                : undefined
+          }
           required
+          {...register('email')}
         />
 
-        {roles === null && !rolesError ? (
+        {rolesQuery.isPending ? (
           <p className="text-ink-soft" role="status">
             Loading roles…
           </p>
         ) : null}
-        {rolesError ? <Alert tone="error">{rolesError}</Alert> : null}
+        {rolesQuery.isError ? (
+          <Alert tone="error">{userErrorMessage(rolesQuery.error)}</Alert>
+        ) : null}
         {roles ? (
-          <RolePicker
-            roles={roles}
-            selected={selected}
-            onChange={setSelected}
-            error={errors.roles}
+          <Controller
+            control={control}
+            name="roles"
+            render={({ field }) => (
+              <RolePicker
+                roles={roles}
+                selected={field.value}
+                onChange={field.onChange}
+                error={errors.roles?.message}
+              />
+            )}
           />
         ) : null}
 
@@ -174,8 +148,8 @@ export function CreateUserForm() {
           >
             Cancel
           </Link>
-          <Button type="submit" disabled={submitting || roles === null}>
-            {submitting ? 'Inviting…' : 'Invite user'}
+          <Button type="submit" disabled={isSubmitting || !roles}>
+            {isSubmitting ? 'Inviting…' : 'Invite user'}
           </Button>
         </div>
       </form>

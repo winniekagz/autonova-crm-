@@ -1,9 +1,11 @@
 'use client';
 
-import type { Paginated, RoleDto, UserDto } from '@autonova/contracts';
-import { PermissionKey, UserStatus, enumValues } from '@autonova/enums';
+import type { Paginated, UserDto } from '@autonova/contracts';
+import { PermissionKey, SystemRoleKey, UserStatus, enumValues } from '@autonova/enums';
 import Link from 'next/link';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import type { FormEvent } from 'react';
+import { useUrlParams } from '@/hooks/use-url-params';
+import { pageParam, readChoice, readPage, readSearch } from '@/lib/url-params';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { SelectField } from '@/components/ui/select-field';
@@ -12,10 +14,11 @@ import { TextField } from '@/components/ui/text-field';
 import { useAuth } from '@/features/auth/auth-context';
 import { can } from '@/features/auth/permissions';
 import { roleLabel } from '@/features/auth/roles';
-import { useAuthedRequest } from '@/features/auth/use-authed-request';
-import * as usersApi from './api';
 import { isPermissionDenied, userErrorMessage } from './error-messages';
 import { PermissionDenied } from './permission-denied';
+import { RolesLoadNotice } from './roles-load-notice';
+import { useRoles } from './use-roles';
+import { useUsersList } from './users.queries';
 
 const PAGE_SIZE = 20;
 
@@ -25,61 +28,51 @@ type LoadState =
   | { kind: 'denied' }
   | { kind: 'error'; message: string };
 
+/** What the screen shows for a query: loading until there is an answer, then data or a safe error. */
+function toLoadState(query: {
+  data: Paginated<UserDto> | undefined;
+  error: unknown;
+  isError: boolean;
+}): LoadState {
+  if (query.isError) {
+    return isPermissionDenied(query.error)
+      ? { kind: 'denied' }
+      : { kind: 'error', message: userErrorMessage(query.error) };
+  }
+  return query.data ? { kind: 'ready', page: query.data } : { kind: 'loading' };
+}
+
 const formatDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('en-KE', { dateStyle: 'medium' }) : 'Never';
 
 export function UserList() {
   const { me } = useAuth();
-  const request = useAuthedRequest();
-  const [state, setState] = useState<LoadState>({ kind: 'loading' });
-  const [roles, setRoles] = useState<RoleDto[]>([]);
 
-  const [searchText, setSearchText] = useState('');
-  const [q, setQ] = useState('');
-  const [status, setStatus] = useState<UserStatus | ''>('');
-  const [role, setRole] = useState('');
-  const [page, setPage] = useState(1);
-  const [reloadKey, setReloadKey] = useState(0);
+  // Search, filters and page live in the URL, so a refresh, a bookmark or a shared link restores
+  // the same view and Back returns to the previous one.
+  const { searchParams, update } = useUrlParams();
+  const q = readSearch(searchParams.get('q'));
+  const status = readChoice(searchParams.get('status'), enumValues(UserStatus));
+  const role = readChoice(searchParams.get('role'), enumValues(SystemRoleKey));
+  const page = readPage(searchParams.get('page'));
 
   const allowed = can(me, PermissionKey.UsersList);
 
-  useEffect(() => {
-    if (!allowed) return;
-    let cancelled = false;
-    setState({ kind: 'loading' });
-    request((token) => usersApi.listUsers(token, { q, status, role, page, pageSize: PAGE_SIZE }))
-      .then((result) => {
-        if (!cancelled) setState({ kind: 'ready', page: result });
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        setState(
-          isPermissionDenied(error)
-            ? { kind: 'denied' }
-            : { kind: 'error', message: userErrorMessage(error) },
-        );
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [allowed, request, q, status, role, page, reloadKey]);
+  const usersQuery = useUsersList({ q, status, role, page, pageSize: PAGE_SIZE }, allowed);
+  const state = toLoadState(usersQuery);
 
   // Roles only fill the filter; failing to load them must not break the list.
-  const loadRoles = useCallback(() => {
-    request((token) => usersApi.listRoles(token))
-      .then(setRoles)
-      .catch(() => setRoles([]));
-  }, [request]);
-  useEffect(() => {
-    if (allowed && can(me, PermissionKey.RolesList)) loadRoles();
-  }, [allowed, me, loadRoles]);
+  const { state: rolesState, retry: retryRoles } = useRoles(
+    allowed && can(me, PermissionKey.RolesList),
+  );
+  const roles = rolesState.kind === 'ready' ? rolesState.roles : [];
 
   if (!allowed || state.kind === 'denied') return <PermissionDenied what="view users" />;
 
-  function onSearch(event: FormEvent) {
+  function onSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPage(1);
-    setQ(searchText.trim());
+    const text = new FormData(event.currentTarget).get('q');
+    update({ q: readSearch(typeof text === 'string' ? text : ''), page: null });
   }
 
   const filtersActive = q !== '' || status !== '' || role !== '';
@@ -113,16 +106,14 @@ export function UserList() {
           type="search"
           name="q"
           placeholder="Name or email"
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
+          // Uncontrolled and re-created when the URL's search changes (Back, a pasted link).
+          key={q}
+          defaultValue={q}
         />
         <SelectField
           label="Status"
           value={status}
-          onChange={(e) => {
-            setPage(1);
-            setStatus(e.target.value === '' ? '' : (e.target.value as UserStatus));
-          }}
+          onChange={(e) => update({ status: e.target.value, page: null })}
         >
           <option value="">All statuses</option>
           {enumValues(UserStatus).map((s) => (
@@ -134,10 +125,7 @@ export function UserList() {
         <SelectField
           label="Role"
           value={role}
-          onChange={(e) => {
-            setPage(1);
-            setRole(e.target.value);
-          }}
+          onChange={(e) => update({ role: e.target.value, page: null })}
         >
           <option value="">All roles</option>
           {roles.map((r) => (
@@ -151,19 +139,34 @@ export function UserList() {
         </Button>
       </form>
 
+      {rolesState.kind === 'error' ? (
+        <div className="mt-3">
+          <RolesLoadNotice what="the role filter" onRetry={retryRoles} />
+        </div>
+      ) : null}
+
       <div className="mt-5" aria-live="polite" aria-busy={state.kind === 'loading'}>
         {state.kind === 'loading' ? <ListSkeleton /> : null}
 
         {state.kind === 'error' ? (
           <div className="space-y-3">
             <Alert tone="error">{state.message}</Alert>
-            <Button variant="secondary" onClick={() => setReloadKey((k) => k + 1)}>
+            <Button variant="secondary" onClick={() => void usersQuery.refetch()}>
               Try again
             </Button>
           </div>
         ) : null}
 
-        {state.kind === 'ready' && state.page.items.length === 0 ? (
+        {state.kind === 'ready' && state.page.items.length === 0 && page > 1 ? (
+          <div className="space-y-3">
+            <Alert tone="info">There are no users on page {page}. The list may have changed.</Alert>
+            <Button variant="secondary" onClick={() => update({ page: null })}>
+              Go to the first page
+            </Button>
+          </div>
+        ) : null}
+
+        {state.kind === 'ready' && state.page.items.length === 0 && page === 1 ? (
           <div className="rounded-lg border border-dashed border-line bg-surface p-8 text-center">
             <p className="font-medium">
               {filtersActive ? 'No users match your filters' : 'No users yet'}
@@ -182,7 +185,7 @@ export function UserList() {
         ) : null}
 
         {state.kind === 'ready' && state.page.items.length > 0 ? (
-          <UserTable page={state.page} onPage={setPage} />
+          <UserTable page={state.page} onPage={(next) => update({ page: pageParam(next) })} />
         ) : null}
       </div>
     </div>

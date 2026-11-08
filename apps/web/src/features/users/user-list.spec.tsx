@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetNavigation } from '@/test/navigation';
 import { DIRECTOR, FINANCE, ROLES, apiError, makeUser, mockApi, renderAs } from '@/test/render';
 import { UserList } from './user-list';
 
+vi.mock('next/navigation', async () => (await import('@/test/navigation')).navigationMock);
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
     <a href={href} {...rest}>
@@ -13,6 +15,7 @@ vi.mock('next/link', () => ({
   ),
 }));
 
+beforeEach(() => resetNavigation('/users'));
 afterEach(() => vi.unstubAllGlobals());
 
 const page = (items: ReturnType<typeof makeUser>[], total = items.length) => ({

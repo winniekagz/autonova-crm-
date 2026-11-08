@@ -1,6 +1,6 @@
 import type { Paginated, RoleDto, UserDto } from '@autonova/contracts';
 import { UserStatus, enumValues } from '@autonova/enums';
-import { apiRequest } from '@/lib/api-client';
+import { apiRequest, apiRequestVoid } from '@/lib/api-client';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -100,6 +100,12 @@ export const createUser = (
   token: string,
   body: { email: string; fullName: string; roles: string[] },
 ) => apiRequest('/users', parseUser, { method: 'POST', body, token });
+
+export const resendInvitation = (token: string, id: string) =>
+  apiRequestVoid(`/users/${encodeURIComponent(id)}/invitation`, {
+    method: 'POST',
+    token,
+  });
 
 export const renameUser = (token: string, id: string, fullName: string) =>
   apiRequest(`/users/${encodeURIComponent(id)}`, parseUser, {

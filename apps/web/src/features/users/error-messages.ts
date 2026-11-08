@@ -3,6 +3,9 @@ import { ApiError } from '@/lib/api-client';
 /** Messages are chosen by error `code`, never copied from the server, so wording stays consistent. */
 const MESSAGES: Record<string, string> = {
   EMAIL_ALREADY_REGISTERED: 'A user with this email address already exists.',
+  INVITATION_EMAIL_FAILED:
+    'The account was created, but the email could not be delivered. Find the invited account and resend its setup email after checking SMTP configuration.',
+  INVITATION_NOT_AVAILABLE: 'This account is no longer waiting for invitation acceptance.',
   FORBIDDEN: 'You do not have permission to do this.',
   MFA_REQUIRED: 'Verify your second factor before managing users.',
   USER_NOT_FOUND: 'This user no longer exists.',

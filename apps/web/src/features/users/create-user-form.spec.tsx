@@ -78,9 +78,10 @@ describe('CreateUserForm', () => {
     await user.click(screen.getByRole('button', { name: 'Invite user' }));
 
     expect(await screen.findByRole('status')).toHaveTextContent(
-      'Wanjiru Kamau has been added as an invited user',
+      'Invitation email sent to wanjiru@autonova.test.',
     );
-    expect(screen.getByRole('status')).toHaveTextContent('cannot sign in yet');
+    expect(screen.getByRole('status')).toHaveTextContent('expires in 48 hours');
+    expect(screen.getByRole('status')).toHaveTextContent('can only be used once');
     expect(screen.getByRole('link', { name: 'View Wanjiru Kamau' })).toHaveAttribute(
       'href',
       '/users/new-1',

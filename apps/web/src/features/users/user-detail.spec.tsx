@@ -237,14 +237,80 @@ describe('UserDetail', () => {
     });
   });
 
-  it('tells the reader that an invited user cannot sign in yet', async () => {
-    mockApi({
-      'GET /users/u-1': () => ({ body: makeUser({ status: 'INVITED', lastLoginAt: null }) }),
-      'GET /roles': () => ({ body: ROLES }),
+  describe('an invited user', () => {
+    const invited = makeUser({ status: 'INVITED', lastLoginAt: null });
+
+    it('is explained as waiting for the invitation email, with no sign-in yet', async () => {
+      mockApi({
+        'GET /users/u-1': () => ({ body: invited }),
+        'GET /roles': () => ({ body: ROLES }),
+      });
+      renderAs(DIRECTOR, <UserDetail userId="u-1" />);
+      await screen.findByText('Invited');
+      expect(screen.getByText(/waiting for its owner to set a password/)).toBeInTheDocument();
+      expect(screen.getByText(/setup link expires after 48 hours/)).toBeInTheDocument();
+      expect(screen.getByText('Never')).toBeInTheDocument();
     });
-    renderAs(DIRECTOR, <UserDetail userId="u-1" />);
-    await screen.findByText('Invited');
-    expect(screen.getByText(/cannot sign in yet/)).toBeInTheDocument();
-    expect(screen.getByText('Never')).toBeInTheDocument();
+
+    it('can have the setup email resent, and says it was sent', async () => {
+      const user = userEvent.setup();
+      const { calls } = mockApi({
+        'GET /users/u-1': () => ({ body: invited }),
+        'GET /roles': () => ({ body: ROLES }),
+        'POST /users/u-1/invitation': () => ({ status: 204 }),
+      });
+      renderAs(DIRECTOR, <UserDetail userId="u-1" />);
+      await user.click(await screen.findByRole('button', { name: 'Resend setup email' }));
+
+      expect(await screen.findByText(/A fresh setup email was sent to/)).toBeInTheDocument();
+      const post = calls.find((c) => c.path === '/users/u-1/invitation');
+      expect(post).toMatchObject({ method: 'POST', auth: expect.stringMatching(/^Bearer /) });
+    });
+
+    it('explains a failed resend without raw server text, and allows another try', async () => {
+      const user = userEvent.setup();
+      let healthy = false;
+      mockApi({
+        'GET /users/u-1': () => ({ body: invited }),
+        'GET /roles': () => ({ body: ROLES }),
+        'POST /users/u-1/invitation': () =>
+          healthy ? { status: 204 } : apiError(502, 'INVITATION_EMAIL_FAILED', 'smtp: raw detail'),
+      });
+      renderAs(DIRECTOR, <UserDetail userId="u-1" />);
+      await user.click(await screen.findByRole('button', { name: 'Resend setup email' }));
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('the email could not be delivered');
+      expect(alert).not.toHaveTextContent('raw detail');
+      expect(screen.getByRole('button', { name: 'Resend setup email' })).toBeEnabled();
+
+      healthy = true;
+      await user.click(screen.getByRole('button', { name: 'Resend setup email' }));
+      expect(await screen.findByText(/A fresh setup email was sent to/)).toBeInTheDocument();
+    });
+
+    it('does not offer a resend to someone who cannot create users', async () => {
+      mockApi({
+        'GET /users/u-1': () => ({ body: invited }),
+        'GET /roles': () => ({ body: ROLES }),
+      });
+      renderAs(
+        { ...DIRECTOR, permissions: ['users:read', 'roles:list'] },
+        <UserDetail userId="u-1" />,
+      );
+      await screen.findByText('Invited');
+      expect(screen.queryByRole('button', { name: 'Resend setup email' })).not.toBeInTheDocument();
+    });
+
+    it('is not shown the invitation notice once active', async () => {
+      mockApi({
+        'GET /users/u-1': () => ({ body: target }),
+        'GET /roles': () => ({ body: ROLES }),
+      });
+      renderAs(DIRECTOR, <UserDetail userId="u-1" />);
+      await screen.findByRole('heading', { name: 'Wanjiru Kamau' });
+      expect(screen.queryByText(/waiting for its owner/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Resend setup email' })).not.toBeInTheDocument();
+    });
   });
 });
