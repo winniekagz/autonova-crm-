@@ -1,4 +1,9 @@
-import type { UserStatus } from '@autonova/enums';
+import type {
+  LeadDisqualificationReason,
+  LeadSource,
+  LeadStage,
+  UserStatus,
+} from '@autonova/enums';
 
 /** Standard error envelope returned by every API error response. */
 export interface ApiErrorBody {
@@ -51,6 +56,19 @@ export interface LoginResponse {
 /** `POST /auth/refresh` success body: same shape as login. The rotated refresh token is in the cookie. */
 export type RefreshResponse = LoginResponse;
 
+export interface MfaStatusResponse {
+  enrolled: boolean;
+}
+/** Returned only to the authenticated Director who started enrollment; never persisted in plaintext. */
+export interface MfaEnrollmentResponse {
+  secret: string;
+  uri: string;
+}
+/** Recovery codes are displayed once after enrollment confirmation. */
+export interface MfaEnrollmentConfirmedResponse {
+  recoveryCodes: string[];
+}
+
 /** One live sign-in of the caller. Never carries token hashes or any credential. */
 export interface SessionDto {
   id: string;
@@ -92,6 +110,72 @@ export interface RoleDto {
   key: string;
   name: string;
   description: string | null;
+}
+
+export interface LeadDto {
+  id: string;
+  name: string;
+  companyName: string | null;
+  phone: string | null;
+  email: string | null;
+  source: LeadSource;
+  referrerName: string | null;
+  productInterest: string | null;
+  notes: string | null;
+  estimatedValue: string | null;
+  currency: 'KES' | 'USD';
+  stage: LeadStage;
+  lifecycle: LeadLifecycleOptions;
+  lostReason: string | null;
+  lostAt: string | null;
+  disqualificationReason: LeadDisqualificationReason | null;
+  revisitOn: string | null;
+  ownerUserId: string;
+  ownerName: string;
+  nextAction: string;
+  nextActionAt: string;
+  probability: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Server-derived workflow options, independent of the caller's update permission. */
+export interface LeadLifecycleOptions {
+  transitions: LeadStage[];
+  canDisqualify: boolean;
+  canMarkLost: boolean;
+}
+
+export type LeadTransitionSource = 'MANUAL' | 'SCHEDULED_REVISIT';
+
+export interface LeadStageHistoryDto {
+  id: string;
+  leadId: string;
+  fromStage: LeadStage | null;
+  toStage: LeadStage;
+  actorUserId: string | null;
+  actorName: string | null;
+  occurredAt: string;
+  reason: string | null;
+  disqualificationReason: LeadDisqualificationReason | null;
+  revisitOn: string | null;
+  source: LeadTransitionSource;
+}
+
+export interface LeadInput {
+  name: string;
+  companyName?: string;
+  phone?: string;
+  email?: string;
+  source: LeadSource;
+  referrerName?: string;
+  productInterest?: string;
+  notes?: string;
+  estimatedValue?: string;
+  currency: 'KES' | 'USD';
+  nextAction: string;
+  nextActionAt: string;
+  probability?: number;
 }
 
 /** The status is not part of the request: new users are always created as INVITED. */

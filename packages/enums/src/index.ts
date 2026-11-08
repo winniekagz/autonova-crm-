@@ -28,6 +28,10 @@ export const PermissionKey = {
   UsersAssignRoles: 'users:assign_roles',
   UsersDisable: 'users:disable',
   RolesList: 'roles:list',
+  LeadsList: 'leads:list',
+  LeadsRead: 'leads:read',
+  LeadsCreate: 'leads:create',
+  LeadsUpdate: 'leads:update',
 } as const;
 export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];
 
@@ -43,6 +47,49 @@ export const Currency = {
   USD: 'USD',
 } as const;
 export type Currency = (typeof Currency)[keyof typeof Currency];
+
+export const LeadSource = {
+  Referral: 'REFERRAL',
+  Instagram: 'INSTAGRAM',
+  Website: 'WEBSITE',
+  WalkIn: 'WALK_IN',
+  Event: 'EVENT',
+  ColdOutreach: 'COLD_OUTREACH',
+  ExistingClientUpsell: 'EXISTING_CLIENT_UPSELL',
+} as const;
+export type LeadSource = (typeof LeadSource)[keyof typeof LeadSource];
+
+/** Canonical current pipeline stage stored on each lead/opportunity aggregate. */
+export const LeadStage = {
+  NewLead: 'NEW_LEAD',
+  VisitsAndCalls: 'VISITS_AND_CALLS',
+  Qualified: 'QUALIFIED',
+  ScopeAlignment: 'SCOPE_ALIGNMENT',
+  TorQuoteSent: 'TOR_QUOTE_SENT',
+  Disqualified: 'DISQUALIFIED',
+  Won: 'WON',
+  Lost: 'LOST',
+} as const;
+export type LeadStage = (typeof LeadStage)[keyof typeof LeadStage];
+
+/** PRD §4.4 disqualification choices. Timing is the only choice that schedules re-entry. */
+export const LeadDisqualificationReason = {
+  NoBudget: 'NO_BUDGET',
+  NoDecisionMaker: 'NO_DECISION_MAKER',
+  NeedDoesNotFit: 'NEED_DOES_NOT_FIT',
+  ChoseCompetitor: 'CHOSE_COMPETITOR',
+  Unresponsive: 'UNRESPONSIVE',
+  TimingRevisitLater: 'TIMING_REVISIT_LATER',
+  Other: 'OTHER',
+} as const;
+export type LeadDisqualificationReason =
+  (typeof LeadDisqualificationReason)[keyof typeof LeadDisqualificationReason];
+
+export const LeadTransitionSource = {
+  Manual: 'MANUAL',
+  ScheduledRevisit: 'SCHEDULED_REVISIT',
+} as const;
+export type LeadTransitionSource = (typeof LeadTransitionSource)[keyof typeof LeadTransitionSource];
 
 export function enumValues<T extends Record<string, string>>(e: T): [T[keyof T], ...T[keyof T][]] {
   return Object.values(e) as [T[keyof T], ...T[keyof T][]];
