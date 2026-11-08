@@ -4,7 +4,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FINANCE, apiError, mockApi, renderAs } from '@/test/render';
-import { SessionList, describeDevice } from './session-list';
+import { SessionList } from './session-list';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -28,15 +28,6 @@ const session = (over: Partial<SessionDto> = {}): SessionDto => ({
   ip: '10.0.0.2',
   userAgent: IPHONE,
   ...over,
-});
-
-describe('describeDevice', () => {
-  it.each([
-    [CHROME, 'Chrome on Linux'],
-    [IPHONE, 'Safari on iOS'],
-    [null, 'Unknown device'],
-    ['curl/8.0', 'curl/8.0'],
-  ])('%s -> %s', (agent, label) => expect(describeDevice(agent)).toBe(label));
 });
 
 describe('SessionList', () => {
@@ -82,11 +73,18 @@ describe('SessionList', () => {
 
   it('asks for confirmation, then revokes, removes the row and confirms success', async () => {
     const user = userEvent.setup();
+    // A real server stops listing a session once it is revoked; the page re-reads the list.
+    let revoked = false;
     const { calls } = mockApi({
       'GET /auth/sessions': () => ({
-        body: [session({ id: 'cur', current: true }), session({ id: 'other' })],
+        body: revoked
+          ? [session({ id: 'cur', current: true })]
+          : [session({ id: 'cur', current: true }), session({ id: 'other' })],
       }),
-      'DELETE /auth/sessions/other': () => ({ status: 204 }),
+      'DELETE /auth/sessions/other': () => {
+        revoked = true;
+        return { status: 204 };
+      },
     });
     renderAs(FINANCE, <SessionList />);
     await screen.findByRole('list', { name: 'Sessions' });
@@ -97,7 +95,8 @@ describe('SessionList', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Sign out' }));
 
     expect(await screen.findByText('Session signed out.')).toBeInTheDocument();
-    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+    await waitFor(() => expect(screen.getAllByRole('listitem')).toHaveLength(1));
+    expect(calls.filter((c) => c.path === '/auth/sessions' && c.method === 'GET')).toHaveLength(2);
     const del = calls.find((c) => c.method === 'DELETE');
     expect(del).toMatchObject({
       path: '/auth/sessions/other',

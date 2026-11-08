@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { DIRECTOR, renderAs } from '@/test/render';
+import { DIRECTOR, mockApi, renderAs } from '@/test/render';
 import { AuthContext, type AuthState } from './auth-context';
 import { AppShell } from './app-shell';
 
@@ -28,6 +28,7 @@ const state = (over: Partial<AuthState>): AuthState => ({
   retryRestore: vi.fn(),
   getAccessToken: async () => 't',
   renewAccessToken: async () => 't',
+  reloadProfile: async () => DIRECTOR,
   ...over,
 });
 const SECRET = 'SENSITIVE-CHILD-DATA';
@@ -87,7 +88,8 @@ describe('AppShell: protected first render', () => {
     expect(screen.getByRole('link', { name: 'Sessions' })).toHaveAttribute('href', '/sessions');
   });
 
-  it('shows the MFA restriction instead of children for a restricted session', () => {
+  it('shows the MFA screen instead of children for a restricted session', async () => {
+    mockApi({ 'GET /auth/mfa/status': () => ({ body: { enrolled: false } }) });
     renderAs(
       { ...DIRECTOR, restricted: true, mfa: { required: true, verified: false } },
       <AppShell>
@@ -95,6 +97,8 @@ describe('AppShell: protected first render', () => {
       </AppShell>,
     );
     expect(screen.queryByText(SECRET)).not.toBeInTheDocument();
-    expect(screen.getByText('Two-factor verification required')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByText('Director two-factor verification')).toBeInTheDocument(),
+    );
   });
 });

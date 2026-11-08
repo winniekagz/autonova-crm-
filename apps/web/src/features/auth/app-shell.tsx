@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { DirectorMfa, RecoveryCodes } from './director-mfa';
 import { useAuth } from './auth-context';
 import { can } from './permissions';
 
@@ -20,6 +21,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState(false);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
 
   // Definitively signed out: first visit, an ended/revoked/expired session or a rejected refresh.
   // Not while `restoring` (we do not know yet) or `unavailable` (the session may still be valid).
@@ -66,6 +68,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const links = [
     { href: '/', label: 'Home', show: true },
+    { href: '/leads', label: 'Leads', show: can(me, PermissionKey.LeadsList) },
     { href: '/users', label: 'Users', show: can(me, PermissionKey.UsersList) },
     { href: '/sessions', label: 'Sessions', show: true },
   ].filter((link) => link.show);
@@ -109,17 +112,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Alert>
           </div>
         ) : null}
-        {me.restricted ? (
-          <Alert tone="warning">
-            <p className="font-medium">Two-factor verification required</p>
-            <p className="mt-1">
-              Directors must verify a second factor before using the CRM. This step is not available
-              yet, so access is limited to this page and signing out.
-            </p>
-          </Alert>
-        ) : (
-          children
-        )}
+        {recoveryCodes ? (
+          <RecoveryCodes codes={recoveryCodes} onDismiss={() => setRecoveryCodes(null)} />
+        ) : null}
+        {me.restricted ? <DirectorMfa onRecoveryCodes={setRecoveryCodes} /> : children}
       </main>
     </div>
   );

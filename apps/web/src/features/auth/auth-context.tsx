@@ -41,6 +41,7 @@ export interface AuthState {
   getAccessToken: () => Promise<string>;
   /** A replacement for `stale`, which the API rejected as expired. */
   renewAccessToken: (stale: string) => Promise<string>;
+  reloadProfile: () => Promise<MeResponse>;
 }
 
 export const AuthContext = createContext<AuthState | null>(null);
@@ -151,6 +152,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [manager, expireSession],
   );
 
+  const reloadProfile = useCallback(async () => {
+    const profile = await authApi.getMe(await manager.accessToken());
+    setMe(profile);
+    setStatus('authenticated');
+    return profile;
+  }, [manager]);
+
   const value = useMemo<AuthState>(
     () => ({
       status,
@@ -161,8 +169,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       retryRestore,
       getAccessToken,
       renewAccessToken,
+      reloadProfile,
     }),
-    [status, me, signIn, signOut, expireSession, retryRestore, getAccessToken, renewAccessToken],
+    [
+      status,
+      me,
+      signIn,
+      signOut,
+      expireSession,
+      retryRestore,
+      getAccessToken,
+      renewAccessToken,
+      reloadProfile,
+    ],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

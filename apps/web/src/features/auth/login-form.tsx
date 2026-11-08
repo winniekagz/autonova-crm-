@@ -1,14 +1,25 @@
 'use client';
 
+import { zodResolver } from '@hookform/resolvers/zod';
 import { emailSchema } from '@autonova/validation';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from './auth-context';
 
-type FieldErrors = { email?: string; password?: string };
+/**
+ * Sign-in deliberately checks only that something was entered: the password policy is applied when a
+ * password is chosen, never here, so an older password that was valid when set still works.
+ */
+const loginSchema = z.object({
+  email: emailSchema.pipe(z.string()),
+  password: z.string().min(1, 'Enter your password.'),
+});
+type LoginValues = z.input<typeof loginSchema>;
 
 /** Messages are chosen by error `code`, never copied from the server, so wording stays consistent. */
 function messageFor(error: unknown): string {
@@ -27,56 +38,47 @@ export function LoginForm() {
   useEffect(() => {
     if (status === 'authenticated') router.replace('/');
   }, [status, router]);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+
   const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    resetField,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: { email: '', password: '' },
+  });
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (submitting) return;
-
-    const errors: FieldErrors = {};
-    if (!emailSchema.safeParse(email).success) errors.email = 'Enter a valid email address.';
-    if (password.length === 0) errors.password = 'Enter your password.';
-    setFieldErrors(errors);
+  const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
-    if (errors.email || errors.password) return;
-
-    setSubmitting(true);
     try {
-      await signIn(email, password);
+      await signIn(values.email, values.password);
       router.replace('/');
     } catch (error) {
-      // Input is preserved; the password is cleared so a wrong one is not left on screen.
-      setPassword('');
+      // The email stays; the password is cleared so a wrong one is not left on screen.
+      resetField('password');
       setFormError(messageFor(error));
-      setSubmitting(false);
     }
-  }
+  });
 
   return (
     <form onSubmit={onSubmit} noValidate className="space-y-4" aria-label="Sign in">
       <TextField
         label="Email"
         type="email"
-        name="email"
         autoComplete="username"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        error={fieldErrors.email}
+        error={errors.email ? 'Enter a valid email address.' : undefined}
         required
+        {...register('email')}
       />
       <TextField
         label="Password"
         type="password"
-        name="password"
         autoComplete="current-password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        error={fieldErrors.password}
+        error={errors.password?.message}
         required
+        {...register('password')}
       />
       <div role="alert" aria-live="polite">
         {formError ? (
@@ -85,8 +87,8 @@ export function LoginForm() {
           </p>
         ) : null}
       </div>
-      <Button type="submit" disabled={submitting} className="w-full">
-        {submitting ? 'Signing in…' : 'Sign in'}
+      <Button type="submit" disabled={isSubmitting} className="w-full">
+        {isSubmitting ? 'Signing in…' : 'Sign in'}
       </Button>
     </form>
   );

@@ -67,6 +67,56 @@ export const refreshSession = () =>
 
 export const getMe = (token: string) => apiRequest('/auth/me', parseMeResponse, { token });
 
+export const acceptInvitation = (token: string, password: string) =>
+  apiRequestVoid('/auth/invitations/accept', {
+    method: 'POST',
+    body: { token, password },
+  });
+
+export const mfaStatus = (token: string) =>
+  apiRequest(
+    '/auth/mfa/status',
+    (json) => {
+      if (isRecord(json) && typeof json.enrolled === 'boolean') return { enrolled: json.enrolled };
+      throw new Error('Unexpected MFA status from the server');
+    },
+    { token },
+  );
+
+export const beginMfaEnrollment = (token: string) =>
+  apiRequest(
+    '/auth/mfa/enrollment',
+    (json) => {
+      if (isRecord(json) && typeof json.secret === 'string' && typeof json.uri === 'string') {
+        return { secret: json.secret, uri: json.uri };
+      }
+      throw new Error('Unexpected MFA enrollment response from the server');
+    },
+    { method: 'POST', token },
+  );
+
+export const confirmMfaEnrollment = (token: string, code: string) =>
+  apiRequest(
+    '/auth/mfa/enrollment/confirm',
+    (json) => {
+      if (
+        isRecord(json) &&
+        Array.isArray(json.recoveryCodes) &&
+        json.recoveryCodes.every((v) => typeof v === 'string')
+      ) {
+        return { recoveryCodes: json.recoveryCodes as string[] };
+      }
+      throw new Error('Unexpected MFA enrollment response from the server');
+    },
+    { method: 'POST', body: { code }, token },
+  );
+
+export const verifyMfa = (token: string, code: string) =>
+  apiRequestVoid('/auth/mfa/verify', { method: 'POST', body: { code }, token });
+
+export const recoverMfa = (token: string, code: string) =>
+  apiRequestVoid('/auth/mfa/recover', { method: 'POST', body: { code }, token });
+
 export const logout = (token: string) =>
   apiRequestVoid('/auth/logout', { method: 'POST', token, cookies: true });
 
