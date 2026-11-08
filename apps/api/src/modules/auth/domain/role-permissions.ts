@@ -17,8 +17,18 @@ export const ROLE_PERMISSIONS: Record<SystemRoleKey, readonly PermissionKey[]> =
     PermissionKey.UsersAssignRoles,
     PermissionKey.UsersDisable,
     PermissionKey.RolesList,
+    PermissionKey.LeadsList,
+    PermissionKey.LeadsRead,
+    PermissionKey.LeadsCreate,
+    PermissionKey.LeadsUpdate,
   ],
-  [SystemRoleKey.BusinessDevelopment]: [],
+  // PRD §2.2–2.3 and §4.1 explicitly grant BD users own leads and own pipeline.
+  [SystemRoleKey.BusinessDevelopment]: [
+    PermissionKey.LeadsList,
+    PermissionKey.LeadsRead,
+    PermissionKey.LeadsCreate,
+    PermissionKey.LeadsUpdate,
+  ],
   [SystemRoleKey.TechnicalLead]: [],
   [SystemRoleKey.Finance]: [],
 };
@@ -31,4 +41,8 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   [PermissionKey.UsersAssignRoles]: 'Change which roles an internal user holds',
   [PermissionKey.UsersDisable]: 'Disable an internal user and revoke their sessions',
   [PermissionKey.RolesList]: 'List the roles that can be assigned',
+  [PermissionKey.LeadsList]: 'List leads in the caller’s permitted pipeline scope',
+  [PermissionKey.LeadsRead]: 'View a lead in the caller’s permitted pipeline scope',
+  [PermissionKey.LeadsCreate]: 'Create a lead owned by the caller',
+  [PermissionKey.LeadsUpdate]: 'Update a lead in the caller’s permitted pipeline scope',
 };

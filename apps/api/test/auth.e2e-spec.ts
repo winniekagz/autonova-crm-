@@ -196,11 +196,14 @@ describe('authentication: login, /auth/me, logout, per-request checks (e2e)', ()
         }
       }
       // login is public (and answers 400 to an empty body); refresh is public but its CSRF guard
-      // refuses a request with no Origin/custom header (403); health endpoints answer 200.
+      // refuses a request with no Origin/custom header (403); invitation acceptance is public
+      // because the person has no account access yet, and the single-use token is its credential
+      // (an empty body is a 400); health endpoints answer 200.
       // The test-only probe is private (401) and therefore absent from this list.
       expect([...publicOps].sort()).toEqual([
         'GET /api/v1/health -> 200',
         'GET /api/v1/health/live -> 200',
+        'POST /api/v1/auth/invitations/accept -> 400',
         'POST /api/v1/auth/login -> 400',
         // Public because it has no access token; authenticated by the refresh cookie + CSRF guard.
         'POST /api/v1/auth/refresh -> 403',

@@ -82,12 +82,14 @@ export class RefreshSessionUseCase {
       }
 
       const record = await this.repository.loadSessionContext(consumed.sessionId, tx);
+      if (!record) return { kind: 'rejected', reason: 'session_invalid' };
+      // The token's own session decides the subject: nothing from the client is consulted.
       const authentication = authenticateSession(
         record,
-        { sub: record?.user.id ?? '', sid: consumed.sessionId },
+        { sub: record.session.userId, sid: consumed.sessionId },
         now,
       );
-      if (!authentication.ok || !record) return { kind: 'rejected', reason: 'session_invalid' };
+      if (!authentication.ok) return { kind: 'rejected', reason: 'session_invalid' };
 
       // `mfa_verified_at` is deliberately untouched: a refresh can never upgrade a session.
       const refresh = await this.refreshTokens.issue(tx, {

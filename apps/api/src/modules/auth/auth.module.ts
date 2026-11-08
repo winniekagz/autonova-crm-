@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { AccessTokenService } from './application/access-token.service.js';
 import { BootstrapDirectorUseCase } from './application/bootstrap-director.use-case.js';
 import { LoginUseCase } from './application/login.use-case.js';
+import { AuthMfaService } from './application/mfa.service.js';
 import { LogoutUseCase } from './application/logout.use-case.js';
 import { PasswordHasher } from './application/password-hasher.js';
 import { RefreshSessionUseCase } from './application/refresh-session.use-case.js';
@@ -25,6 +26,7 @@ import { RefreshCookie } from './presentation/refresh-cookie.js';
     AccessTokenService,
     SessionAuthenticator,
     LoginUseCase,
+    AuthMfaService,
     LogoutUseCase,
     RefreshTokenService,
     RefreshSessionUseCase,

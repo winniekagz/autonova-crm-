@@ -19,6 +19,17 @@ describe('ROLE_PERMISSIONS', () => {
     }
   });
 
+  it('grants only the PRD-explicit own-lead capability to Business Development', () => {
+    expect(ROLE_PERMISSIONS[SystemRoleKey.BusinessDevelopment]).toEqual([
+      PermissionKey.LeadsList,
+      PermissionKey.LeadsRead,
+      PermissionKey.LeadsCreate,
+      PermissionKey.LeadsUpdate,
+    ]);
+    expect(ROLE_PERMISSIONS[SystemRoleKey.TechnicalLead]).toEqual([]);
+    expect(ROLE_PERMISSIONS[SystemRoleKey.Finance]).toEqual([]);
+  });
+
   it('grants every defined permission to at least one role, so none is dead', () => {
     const granted = new Set(Object.values(ROLE_PERMISSIONS).flat());
     for (const key of enumValues(PermissionKey)) expect(granted.has(key)).toBe(true);
