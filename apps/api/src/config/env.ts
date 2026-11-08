@@ -21,7 +21,13 @@ export const envSchema = z.object({
       message: 'must be a postgresql:// connection string',
     }),
   CORS_ORIGINS: csv.default(['http://localhost:3000']),
+  APP_BASE_URL: z.url().default('http://localhost:3000'),
+  SMTP_URL: z.url().optional(),
+  MAIL_FROM: z.string().min(3).default('Autonova CRM <no-reply@localhost>'),
   JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters (openssl rand -base64 48)'),
+  MFA_ENCRYPTION_KEY: z
+    .string()
+    .refine((value) => Buffer.from(value, 'base64').length === 32, 'must decode to 32 bytes'),
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
   SESSION_ABSOLUTE_TTL_SECONDS: z.coerce.number().int().min(900).max(7_776_000).default(2_592_000),
   // A refresh token is replaced on every use, so this is also the idle timeout: a user who does not
@@ -54,9 +60,13 @@ export function validateEnv(raw: Record<string, unknown>): Env {
     if (PLACEHOLDER_SECRET.test(env.JWT_ACCESS_SECRET)) {
       throw new Error('JWT_ACCESS_SECRET looks like a placeholder; generate a real secret');
     }
+    if (PLACEHOLDER_SECRET.test(env.MFA_ENCRYPTION_KEY)) {
+      throw new Error('MFA_ENCRYPTION_KEY looks like a placeholder; generate a real secret');
+    }
     if (env.CORS_ORIGINS.includes('*')) {
       throw new Error('CORS_ORIGINS must not contain * (credentials are enabled)');
     }
+    if (!env.SMTP_URL) throw new Error('SMTP_URL is required in production');
   }
   return env;
 }

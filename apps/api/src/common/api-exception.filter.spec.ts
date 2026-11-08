@@ -37,6 +37,19 @@ describe('ApiExceptionFilter', () => {
     });
   });
 
+  it('reports an empty requestId when the request carries no usable id', () => {
+    const json = vi.fn();
+    const status = vi.fn().mockReturnValue({ json });
+    const host = {
+      switchToHttp: () => ({
+        getRequest: () => ({ id: 42, originalUrl: '/api/v1/x', url: '/x' }),
+        getResponse: () => ({ status }),
+      }),
+    } as unknown as ArgumentsHost;
+    new ApiExceptionFilter().catch(new ForbiddenException('nope'), host);
+    expect(json.mock.calls[0]?.[0].requestId).toBe('');
+  });
+
   it('carries validation details and a custom code', () => {
     const { body } = run(
       new BadRequestException({

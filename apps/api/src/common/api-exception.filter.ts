@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type { ApiErrorBody, ApiErrorDetail, HealthResponse } from '@autonova/contracts';
 import type { Request, Response } from 'express';
+import { requestIdOf } from './request-id.js';
 
 export const VALIDATION_FAILED = 'VALIDATION_FAILED';
 
@@ -89,7 +90,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       code,
       message,
       ...(details ? { details } : {}),
-      requestId: typeof request.id === 'string' ? request.id : '',
+      requestId: requestIdOf(request) ?? '',
       timestamp: new Date().toISOString(),
       path: request.originalUrl ?? request.url,
     };

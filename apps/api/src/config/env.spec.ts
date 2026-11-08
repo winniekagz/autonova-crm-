@@ -4,6 +4,7 @@ import { envSchema, swaggerEnabled, validateEnv } from './env.js';
 const base = {
   DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
   JWT_ACCESS_SECRET: 'x'.repeat(48),
+  MFA_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64'),
 };
 
 describe('envSchema', () => {
