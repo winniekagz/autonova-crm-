@@ -59,6 +59,26 @@ export const LeadSource = {
 } as const;
 export type LeadSource = (typeof LeadSource)[keyof typeof LeadSource];
 
+/** PRD §4.1 product catalogue. Values are stable keys; show people `PRODUCT_INTEREST_LABELS`. */
+export const ProductInterest = {
+  RetailPos: 'RETAIL_POS',
+  CarWashAutomation: 'CAR_WASH_AUTOMATION',
+  Erp: 'ERP',
+  VisitorSecuritySystem: 'VISITOR_SECURITY_SYSTEM',
+  HiringPlatform: 'HIRING_PLATFORM',
+  CustomBuild: 'CUSTOM_BUILD',
+} as const;
+export type ProductInterest = (typeof ProductInterest)[keyof typeof ProductInterest];
+
+export const PRODUCT_INTEREST_LABELS: Record<ProductInterest, string> = {
+  RETAIL_POS: 'Retail POS',
+  CAR_WASH_AUTOMATION: 'Car Wash Automation',
+  ERP: 'ERP',
+  VISITOR_SECURITY_SYSTEM: 'Visitor/Security System',
+  HIRING_PLATFORM: 'Hiring Platform (TalentHub)',
+  CUSTOM_BUILD: 'Custom Build',
+};
+
 /** Canonical current pipeline stage stored on each lead/opportunity aggregate. */
 export const LeadStage = {
   NewLead: 'NEW_LEAD',
@@ -90,6 +110,26 @@ export const LeadTransitionSource = {
   ScheduledRevisit: 'SCHEDULED_REVISIT',
 } as const;
 export type LeadTransitionSource = (typeof LeadTransitionSource)[keyof typeof LeadTransitionSource];
+
+/** Delivery state of a next-action reminder. Only PENDING rows are ever retried. */
+export const LeadReminderStatus = {
+  Pending: 'PENDING',
+  Sent: 'SENT',
+  Failed: 'FAILED',
+  Skipped: 'SKIPPED',
+} as const;
+export type LeadReminderStatus = (typeof LeadReminderStatus)[keyof typeof LeadReminderStatus];
+
+/** Why a reminder was not delivered (or is being retried). Never contains provider details. */
+export const LeadReminderReason = {
+  SmtpNotConfigured: 'SMTP_NOT_CONFIGURED',
+  DeliveryFailed: 'DELIVERY_FAILED',
+  LeadNotActive: 'LEAD_NOT_ACTIVE',
+  FollowUpChanged: 'FOLLOW_UP_CHANGED',
+  RecipientUnavailable: 'RECIPIENT_UNAVAILABLE',
+  TooOverdue: 'TOO_OVERDUE',
+} as const;
+export type LeadReminderReason = (typeof LeadReminderReason)[keyof typeof LeadReminderReason];
 
 export function enumValues<T extends Record<string, string>>(e: T): [T[keyof T], ...T[keyof T][]] {
   return Object.values(e) as [T[keyof T], ...T[keyof T][]];

@@ -3,12 +3,15 @@ import {
   LeadDisqualificationReason,
   LeadSource,
   LeadStage,
+  ProductInterest,
   enumValues,
 } from '@autonova/enums';
 import { paginationQuerySchema, uuidSchema } from '@autonova/validation';
 import { z } from 'zod';
 
 const optionalText = (max: number) => z.string().trim().max(max).optional();
+const productInterestSchema = z.enum(enumValues(ProductInterest));
+const acknowledgeDuplicates = z.boolean().optional();
 const valueSchema = z
   .string()
   .regex(/^\d{1,12}(?:\.\d{1,2})?$/, 'Use a non-negative amount with up to two decimals');
@@ -21,13 +24,14 @@ export const createLeadSchema = z
     email: z.union([z.email().max(254), z.literal('')]).optional(),
     source: z.enum(enumValues(LeadSource)),
     referrerName: optionalText(200),
-    productInterest: optionalText(120),
+    productInterest: productInterestSchema.nullable().optional(),
     notes: optionalText(5000),
     estimatedValue: valueSchema.optional(),
     currency: z.enum(enumValues(Currency)),
     nextAction: z.string().trim().min(1).max(500),
     nextActionAt: z.iso.datetime(),
     probability: z.number().int().min(0).max(100).optional(),
+    acknowledgeDuplicates,
   })
   .strict()
   .refine((value) => value.source !== LeadSource.Referral || Boolean(value.referrerName), {
@@ -43,16 +47,20 @@ export const updateLeadSchema = z
     email: z.union([z.email().max(254), z.literal('')]).optional(),
     source: z.enum(enumValues(LeadSource)).optional(),
     referrerName: optionalText(200),
-    productInterest: optionalText(120),
+    productInterest: productInterestSchema.nullable().optional(),
     notes: optionalText(5000),
     estimatedValue: valueSchema.optional(),
     currency: z.enum(enumValues(Currency)).optional(),
     nextAction: z.string().trim().min(1).max(500).optional(),
     nextActionAt: z.iso.datetime().optional(),
     probability: z.number().int().min(0).max(100).nullable().optional(),
+    acknowledgeDuplicates,
   })
   .strict()
-  .refine((value) => Object.keys(value).length > 0, 'Provide at least one field to update')
+  .refine(
+    (value) => Object.keys(value).some((key) => key !== 'acknowledgeDuplicates'),
+    'Provide at least one field to update',
+  )
   .refine((value) => value.source !== LeadSource.Referral || Boolean(value.referrerName), {
     path: ['referrerName'],
     message: 'Enter the referrer for a referral lead',
@@ -62,6 +70,14 @@ export const listLeadsQuerySchema = paginationQuerySchema.extend({
   q: z.string().trim().min(1).max(100).optional(),
 });
 export const leadIdSchema = uuidSchema;
+
+export const duplicateCheckSchema = z
+  .object({
+    phone: optionalText(40),
+    companyName: optionalText(200),
+    excludeLeadId: uuidSchema.optional(),
+  })
+  .strict();
 
 export const transitionLeadSchema = z
   .object({
@@ -87,8 +103,13 @@ export const loseLeadSchema = z
   .strict();
 
 export const leadHistoryQuerySchema = paginationQuerySchema;
+export const leadRemindersQuerySchema = paginationQuerySchema;
 export type CreateLeadBody = z.infer<typeof createLeadSchema>;
 export type UpdateLeadBody = z.infer<typeof updateLeadSchema>;
+/** The lead's own fields: the request minus the duplicate acknowledgement, which is not stored. */
+export type CreateLeadFields = Omit<CreateLeadBody, 'acknowledgeDuplicates'>;
+export type UpdateLeadFields = Omit<UpdateLeadBody, 'acknowledgeDuplicates'>;
+export type DuplicateCheckBody = z.infer<typeof duplicateCheckSchema>;
 export type ListLeadsQuery = z.infer<typeof listLeadsQuerySchema>;
 export type TransitionLeadBody = z.infer<typeof transitionLeadSchema>;
 export type DisqualifyLeadBody = z.infer<typeof disqualifyLeadSchema>;

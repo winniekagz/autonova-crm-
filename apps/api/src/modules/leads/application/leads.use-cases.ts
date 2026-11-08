@@ -4,7 +4,10 @@ import type { Paginated, LeadDto } from '@autonova/contracts';
 import type { AuthenticatedUser } from '../../auth/domain/authenticated-user.js';
 import { AuditService } from '../../audit/audit.service.js';
 import { PrismaService } from '../../../prisma/prisma.service.js';
+import { LeadRemindersRepository } from '../infrastructure/lead-reminders.repository.js';
 import { LeadsRepository } from '../infrastructure/leads.repository.js';
+import { LeadDuplicatesService } from './lead-duplicates.service.js';
+import { scopeFor } from './lead-scope.js';
 import {
   validateDisqualification,
   validateLeadTransition,
@@ -18,6 +21,7 @@ import type {
   LoseLeadBody,
   TransitionLeadBody,
   UpdateLeadBody,
+  UpdateLeadFields,
 } from '../presentation/leads.schemas.js';
 
 const NOT_FOUND = { code: 'LEAD_NOT_FOUND', message: 'Lead not found' };
@@ -30,8 +34,6 @@ const LIFECYCLE_MESSAGES = {
   REVISIT_DATE_NOT_ALLOWED: 'A follow-up date is only used for revisit later.',
   LEAD_STAGE_CHANGED: 'The lead changed while you were working. Reload and try again.',
 } as const;
-const scopeFor = (user: AuthenticatedUser) =>
-  user.roles.includes('director') ? undefined : user.id;
 
 @Injectable()
 export class LeadsUseCases {
@@ -39,6 +41,8 @@ export class LeadsUseCases {
     private readonly prisma: PrismaService,
     private readonly leads: LeadsRepository,
     private readonly audit: AuditService,
+    private readonly duplicates: LeadDuplicatesService,
+    private readonly reminderRecords: LeadRemindersRepository,
   ) {}
 
   async list(query: ListLeadsQuery, user: AuthenticatedUser): Promise<Paginated<LeadDto>> {
@@ -57,8 +61,15 @@ export class LeadsUseCases {
     user: AuthenticatedUser,
     requestId?: string,
   ): Promise<LeadDto> {
+    const { acknowledgeDuplicates, ...fields } = input;
+    const duplicateAcknowledged = await this.duplicates.assertAcknowledged(
+      this.duplicates.keysOf(fields),
+      undefined,
+      user,
+      acknowledgeDuplicates === true,
+    );
     const row = await this.prisma.$transaction(async (tx) => {
-      const created = await this.leads.create(input, user.id, tx);
+      const created = await this.leads.create(fields, user.id, tx);
       await this.audit.record(tx, {
         action: 'lead.created',
         entityType: 'lead',
@@ -68,6 +79,7 @@ export class LeadsUseCases {
           stage: created.stage,
           source: created.source,
           ownerUserId: created.ownerUserId,
+          duplicateAcknowledged,
         },
         requestId,
       });
@@ -84,10 +96,20 @@ export class LeadsUseCases {
     user: AuthenticatedUser,
     requestId?: string,
   ): Promise<LeadDto> {
+    const { acknowledgeDuplicates, ...fields } = input;
+    const duplicateAcknowledged = await this.checkChangedKeys(
+      id,
+      fields,
+      user,
+      acknowledgeDuplicates,
+    );
     await this.prisma.$transaction(async (tx) => {
-      const updated = await this.leads.update(id, input, scopeFor(user), tx);
+      const updated = await this.leads.update(id, fields, scopeFor(user), tx);
       if (!updated) throw new NotFoundException(NOT_FOUND);
-      const changed = Object.fromEntries(Object.keys(input).map((key) => [`${key}Changed`, true]));
+      const changed = {
+        ...Object.fromEntries(Object.keys(fields).map((key) => [`${key}Changed`, true])),
+        ...(duplicateAcknowledged ? { duplicateAcknowledged } : {}),
+      };
       await this.audit.record(tx, {
         action: 'lead.updated',
         entityType: 'lead',
@@ -102,8 +124,45 @@ export class LeadsUseCases {
     return dto;
   }
 
+  /** Only a phone/company that actually changes is checked, so editing a known duplicate stays possible. */
+  private async checkChangedKeys(
+    id: string,
+    fields: UpdateLeadFields,
+    user: AuthenticatedUser,
+    acknowledged: boolean | undefined,
+  ): Promise<boolean> {
+    if (fields.phone === undefined && fields.companyName === undefined) return false;
+    const current = await this.leads.findForLifecycle(id, scopeFor(user));
+    if (!current) throw new NotFoundException(NOT_FOUND);
+    const next = this.duplicates.keysOf(fields);
+    return this.duplicates.assertAcknowledged(
+      {
+        phone:
+          fields.phone !== undefined && next.phone !== current.phoneNormalized ? next.phone : null,
+        company:
+          fields.companyName !== undefined && next.company !== current.companyNameNormalized
+            ? next.company
+            : null,
+      },
+      id,
+      user,
+      acknowledged === true,
+    );
+  }
+
   async history(id: string, query: LeadHistoryQuery, user: AuthenticatedUser) {
     const result = await this.leads.history(id, scopeFor(user), query.page, query.pageSize);
+    if (!result) throw new NotFoundException(NOT_FOUND);
+    return result;
+  }
+
+  async reminders(id: string, query: LeadHistoryQuery, user: AuthenticatedUser) {
+    const result = await this.reminderRecords.listForLead(
+      id,
+      scopeFor(user),
+      query.page,
+      query.pageSize,
+    );
     if (!result) throw new NotFoundException(NOT_FOUND);
     return result;
   }

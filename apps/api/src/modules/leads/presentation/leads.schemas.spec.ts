@@ -1,6 +1,6 @@
 import { LeadSource } from '@autonova/enums';
 import { describe, expect, it } from 'vitest';
-import { createLeadSchema, updateLeadSchema } from './leads.schemas.js';
+import { createLeadSchema, duplicateCheckSchema, updateLeadSchema } from './leads.schemas.js';
 
 const valid = {
   name: 'Nairobi Retail',
@@ -26,5 +26,39 @@ describe('lead request validation', () => {
     expect(createLeadSchema.safeParse({ ...valid, probability: 101 }).success).toBe(false);
     expect(createLeadSchema.safeParse({ ...valid, ownerUserId: 'anything' }).success).toBe(false);
     expect(updateLeadSchema.safeParse({ stage: 'WON' }).success).toBe(false);
+  });
+
+  it('accepts only catalogue product interests and rejects free text', () => {
+    expect(createLeadSchema.safeParse({ ...valid, productInterest: 'RETAIL_POS' }).success).toBe(
+      true,
+    );
+    expect(createLeadSchema.safeParse({ ...valid, productInterest: 'Retail POS' }).success).toBe(
+      false,
+    );
+    expect(createLeadSchema.safeParse({ ...valid, productInterest: 'Website' }).success).toBe(
+      false,
+    );
+    expect(updateLeadSchema.safeParse({ productInterest: null }).success).toBe(true);
+  });
+
+  it('treats the duplicate acknowledgement as a flag, not as a lead field', () => {
+    expect(createLeadSchema.safeParse({ ...valid, acknowledgeDuplicates: true }).success).toBe(
+      true,
+    );
+    expect(createLeadSchema.safeParse({ ...valid, acknowledgeDuplicates: 'yes' }).success).toBe(
+      false,
+    );
+    expect(updateLeadSchema.safeParse({ acknowledgeDuplicates: true }).success).toBe(false);
+    expect(
+      updateLeadSchema.safeParse({ phone: '0712345678', acknowledgeDuplicates: true }).success,
+    ).toBe(true);
+  });
+
+  it('validates the duplicate-check body strictly', () => {
+    expect(
+      duplicateCheckSchema.safeParse({ phone: '0712345678', companyName: 'Acme' }).success,
+    ).toBe(true);
+    expect(duplicateCheckSchema.safeParse({ excludeLeadId: 'not-a-uuid' }).success).toBe(false);
+    expect(duplicateCheckSchema.safeParse({ ownerUserId: 'x' }).success).toBe(false);
   });
 });

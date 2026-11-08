@@ -18,7 +18,8 @@
     "db:status": "prisma migrate status",
     "db:seed": "tsx prisma/seed.ts",
     "db:provision-app-role": "tsx scripts/provision-app-role.ts",
-    "leads:process-revisits": "tsx src/cli/process-lead-revisits.ts",
+    "leads:process-revisits": "nest build && node dist/cli/process-lead-revisits.js",
+    "leads:send-reminders": "nest build && node dist/cli/send-lead-reminders.js",
     "bench:argon2": "tsx scripts/bench-argon2.ts",
     "bootstrap:director": "nest build && node dist/cli/bootstrap-director.js"
   },

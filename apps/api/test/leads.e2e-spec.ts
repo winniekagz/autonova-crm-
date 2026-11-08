@@ -18,10 +18,13 @@ describe('leads (e2e)', () => {
     await app.close();
   });
 
+  // Phone and company are unique per lead so these tests never trip duplicate detection
+  // (covered in leads-capture.e2e-spec.ts).
+  let sequence = 0;
   const body = (suffix: string) => ({
     name: `Lead ${suffix}`,
-    companyName: 'Example Retail',
-    phone: '+254700000001',
+    companyName: `Example Retail ${suffix}`,
+    phone: `+25470${String(1_000_000 + sequence++)}`,
     email: `lead-${suffix}@example.test`,
     source: 'WEBSITE',
     currency: 'KES',

@@ -16,6 +16,14 @@ function escapeHtml(value: string): string {
   });
 }
 
+/** The deployment has no SMTP provider configured; nothing was attempted. */
+export class EmailNotConfiguredError extends Error {
+  constructor() {
+    super('SMTP_URL is not configured');
+    this.name = 'EmailNotConfiguredError';
+  }
+}
+
 @Injectable()
 export class EmailService {
   private readonly transportUrl: string | undefined;
@@ -28,6 +36,47 @@ export class EmailService {
     this.from = config.get('MAIL_FROM', { infer: true });
     this.appBaseUrl = config.get('APP_BASE_URL', { infer: true });
     this.isTest = config.get('NODE_ENV', { infer: true }) === 'test';
+  }
+
+  /** Throws `EmailNotConfiguredError` when no SMTP transport exists, so callers can record why. */
+  async sendLeadReminder(input: {
+    email: string;
+    recipientName: string;
+    leadId: string;
+    leadName: string;
+    companyName: string | null;
+    nextAction: string;
+    dueAtNairobi: string;
+  }): Promise<void> {
+    if (this.isTest) return;
+    if (!this.transportUrl) throw new EmailNotConfiguredError();
+
+    const leadUrl = new URL(
+      `/leads/${encodeURIComponent(input.leadId)}`,
+      this.appBaseUrl,
+    ).toString();
+    const subject = `Follow-up due: ${input.leadName}`;
+    const subjectLine = subject.replace(/[\r\n]+/g, ' ');
+    const who = input.companyName ? `${input.leadName} (${input.companyName})` : input.leadName;
+    const transporter = nodemailer.createTransport(this.transportUrl);
+    try {
+      await transporter.sendMail({
+        from: this.from,
+        to: input.email,
+        subject: subjectLine,
+        text: [
+          `Hello ${input.recipientName},`,
+          '',
+          `Your follow-up for ${who} was due ${input.dueAtNairobi} (Nairobi time).`,
+          `Next action: ${input.nextAction}`,
+          '',
+          `Open the lead: ${leadUrl}`,
+        ].join('\n'),
+        html: `<p>Hello ${escapeHtml(input.recipientName)},</p><p>Your follow-up for <strong>${escapeHtml(who)}</strong> was due ${escapeHtml(input.dueAtNairobi)} (Nairobi time).</p><p>Next action: ${escapeHtml(input.nextAction)}</p><p><a href="${escapeHtml(leadUrl)}">Open the lead</a></p>`,
+      });
+    } finally {
+      transporter.close();
+    }
   }
 
   async sendInvitation(input: { email: string; fullName: string; token: string }): Promise<void> {

@@ -1,7 +1,10 @@
 import type {
   LeadDisqualificationReason,
+  LeadReminderReason,
+  LeadReminderStatus,
   LeadSource,
   LeadStage,
+  ProductInterest,
   UserStatus,
 } from '@autonova/enums';
 
@@ -120,7 +123,9 @@ export interface LeadDto {
   email: string | null;
   source: LeadSource;
   referrerName: string | null;
-  productInterest: string | null;
+  productInterest: ProductInterest | null;
+  /** Free text entered before the catalogue existed; kept so nothing is lost, never written again. */
+  legacyProductInterest: string | null;
   notes: string | null;
   estimatedValue: string | null;
   currency: 'KES' | 'USD';
@@ -169,13 +174,59 @@ export interface LeadInput {
   email?: string;
   source: LeadSource;
   referrerName?: string;
-  productInterest?: string;
+  /** `null` clears the product; omit to leave it unchanged on update. */
+  productInterest?: ProductInterest | null;
   notes?: string;
   estimatedValue?: string;
   currency: 'KES' | 'USD';
   nextAction: string;
   nextActionAt: string;
   probability?: number;
+}
+
+/** A create/update request. Set `acknowledgeDuplicates` after the user reviewed the matches. */
+export interface LeadSaveRequest extends LeadInput {
+  acknowledgeDuplicates?: boolean;
+}
+
+export interface LeadDuplicateCheckRequest {
+  phone?: string;
+  companyName?: string;
+  /** The lead being edited, so it is not reported as a duplicate of itself. */
+  excludeLeadId?: string;
+}
+
+export type LeadDuplicateMatch = 'PHONE' | 'COMPANY';
+
+/** Only leads the caller may already read are listed. */
+export interface LeadDuplicateCandidateDto {
+  id: string;
+  name: string;
+  companyName: string | null;
+  phone: string | null;
+  stage: LeadStage;
+  ownerName: string;
+  matchedOn: LeadDuplicateMatch[];
+  createdAt: string;
+}
+
+export interface LeadDuplicateCheckResult {
+  candidates: LeadDuplicateCandidateDto[];
+  /** Matches in other people's pipelines: counted, never described. */
+  hiddenMatchCount: number;
+}
+
+export interface LeadReminderDto {
+  id: string;
+  leadId: string;
+  /** The follow-up instant this reminder is for. */
+  dueAt: string;
+  status: LeadReminderStatus;
+  attempts: number;
+  lastAttemptAt: string | null;
+  sentAt: string | null;
+  reason: LeadReminderReason | null;
+  recipientName: string;
 }
 
 /** The status is not part of the request: new users are always created as INVITED. */

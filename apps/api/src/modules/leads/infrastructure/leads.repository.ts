@@ -1,13 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../../generated/prisma/client.js';
 import type { LeadDto, LeadStageHistoryDto, Paginated } from '@autonova/contracts';
-import { LeadDisqualificationReason, LeadStage } from '@autonova/enums';
+import { LeadDisqualificationReason, LeadStage, ProductInterest } from '@autonova/enums';
 import { PrismaService } from '../../../prisma/prisma.service.js';
+import { normalizeCompanyName, normalizePhone, type LeadKeys } from '../domain/lead-duplicates.js';
 import { availableLeadLifecycle } from '../domain/lead-lifecycle.js';
 import type {
-  CreateLeadBody,
+  CreateLeadFields,
   ListLeadsQuery,
-  UpdateLeadBody,
+  UpdateLeadFields,
 } from '../presentation/leads.schemas.js';
 
 type Db = Prisma.TransactionClient;
@@ -22,7 +23,8 @@ export function toLeadDto(row: {
   email: string | null;
   source: string;
   referrerName: string | null;
-  productInterest: string | null;
+  productInterest: ProductInterest | null;
+  legacyProductInterest: string | null;
   notes: string | null;
   estimatedValue: Prisma.Decimal | null;
   currency: string;
@@ -50,6 +52,7 @@ export function toLeadDto(row: {
     source: row.source as LeadDto['source'],
     referrerName: row.referrerName,
     productInterest: row.productInterest,
+    legacyProductInterest: row.legacyProductInterest,
     notes: row.notes,
     estimatedValue: row.estimatedValue?.toFixed(2) ?? null,
     currency: row.currency as LeadDto['currency'],
@@ -189,15 +192,42 @@ export class LeadsRepository {
     });
   }
 
-  async create(input: CreateLeadBody, actorUserId: string, db: Db = this.prisma) {
+  /** Leads (any owner, any stage) sharing a normalised phone or company key. Callers filter by visibility. */
+  async findDuplicateCandidates(keys: LeadKeys, excludeLeadId: string | undefined, take = 50) {
+    const matches: Prisma.LeadWhereInput[] = [];
+    if (keys.phone) matches.push({ phoneNormalized: keys.phone });
+    if (keys.company) matches.push({ companyNameNormalized: keys.company });
+    if (matches.length === 0) return [];
+    return this.prisma.lead.findMany({
+      where: { OR: matches, ...(excludeLeadId ? { id: { not: excludeLeadId } } : {}) },
+      select: {
+        id: true,
+        name: true,
+        companyName: true,
+        phone: true,
+        stage: true,
+        ownerUserId: true,
+        phoneNormalized: true,
+        companyNameNormalized: true,
+        createdAt: true,
+        owner: { select: { fullName: true } },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take,
+    });
+  }
+
+  async create(input: CreateLeadFields, actorUserId: string, db: Db = this.prisma) {
     return db.lead.create({
       data: {
         ...input,
+        phoneNormalized: normalizePhone(input.phone),
+        companyNameNormalized: normalizeCompanyName(input.companyName),
         email: input.email || null,
         companyName: input.companyName || null,
         phone: input.phone || null,
         referrerName: input.referrerName || null,
-        productInterest: input.productInterest || null,
+        productInterest: input.productInterest ?? null,
         notes: input.notes || null,
         estimatedValue: input.estimatedValue ?? null,
         nextActionAt: new Date(input.nextActionAt),
@@ -210,7 +240,7 @@ export class LeadsRepository {
 
   async update(
     id: string,
-    input: UpdateLeadBody,
+    input: UpdateLeadFields,
     ownerUserId: string | undefined,
     db: Db = this.prisma,
   ) {
@@ -221,12 +251,17 @@ export class LeadsRepository {
       data: {
         ...input,
         ...(input.email !== undefined ? { email: input.email || null } : {}),
-        ...(input.companyName !== undefined ? { companyName: input.companyName || null } : {}),
-        ...(input.phone !== undefined ? { phone: input.phone || null } : {}),
-        ...(input.referrerName !== undefined ? { referrerName: input.referrerName || null } : {}),
-        ...(input.productInterest !== undefined
-          ? { productInterest: input.productInterest || null }
+        ...(input.companyName !== undefined
+          ? {
+              companyName: input.companyName || null,
+              companyNameNormalized: normalizeCompanyName(input.companyName),
+            }
           : {}),
+        ...(input.phone !== undefined
+          ? { phone: input.phone || null, phoneNormalized: normalizePhone(input.phone) }
+          : {}),
+        ...(input.referrerName !== undefined ? { referrerName: input.referrerName || null } : {}),
+        ...(input.productInterest !== undefined ? { productInterest: input.productInterest } : {}),
         ...(input.notes !== undefined ? { notes: input.notes || null } : {}),
         ...(input.estimatedValue !== undefined ? { estimatedValue: input.estimatedValue } : {}),
         ...(input.nextActionAt !== undefined ? { nextActionAt: new Date(input.nextActionAt) } : {}),

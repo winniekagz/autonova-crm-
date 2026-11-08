@@ -14,3 +14,16 @@ export function nairobiBusinessDate(at: Date): string {
 export function prismaDateOnly(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
 }
+
+/** "10 Nov 2026, 09:00" in Nairobi time, independent of the host timezone. */
+export function formatNairobiDateTime(at: Date): string {
+  return new Intl.DateTimeFormat('en-KE', {
+    timeZone: 'Africa/Nairobi',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(at);
+}

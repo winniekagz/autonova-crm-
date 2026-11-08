@@ -11,21 +11,22 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiOperation,
-  ApiParam,
-  ApiQuery,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { PermissionKey } from '@autonova/enums';
-import type { LeadDto, LeadStageHistoryDto, Paginated } from '@autonova/contracts';
+import type {
+  LeadDto,
+  LeadDuplicateCheckResult,
+  LeadReminderDto,
+  LeadStageHistoryDto,
+  Paginated,
+} from '@autonova/contracts';
 import type { Request } from 'express';
 import type { AuthenticatedUser } from '../../auth/domain/authenticated-user.js';
 import { CurrentUser, RequirePermission } from '../../auth/presentation/decorators.js';
 import {
   DocCreateLead,
+  DocDuplicateCheck,
+  DocLeadReminders,
   DocDisqualifyLead,
   DocGetLead,
   DocLeadHistory,
@@ -34,10 +35,13 @@ import {
   DocTransitionLead,
   DocUpdateLead,
 } from './leads.docs.js';
+import { LeadDuplicatesService } from '../application/lead-duplicates.service.js';
 import { LeadsUseCases } from '../application/leads.use-cases.js';
 import {
   createLeadSchema,
+  duplicateCheckSchema,
   leadIdSchema,
+  leadRemindersQuerySchema,
   listLeadsQuerySchema,
   updateLeadSchema,
   disqualifyLeadSchema,
@@ -45,6 +49,7 @@ import {
   loseLeadSchema,
   transitionLeadSchema,
   type CreateLeadBody,
+  type DuplicateCheckBody,
   type DisqualifyLeadBody,
   type LeadHistoryQuery,
   type ListLeadsQuery,
@@ -57,7 +62,10 @@ import {
 @ApiBearerAuth()
 @Controller('leads')
 export class LeadsController {
-  constructor(private readonly leads: LeadsUseCases) {}
+  constructor(
+    private readonly leads: LeadsUseCases,
+    private readonly duplicates: LeadDuplicatesService,
+  ) {}
 
   @Get()
   @RequirePermission(PermissionKey.LeadsList)
@@ -109,7 +117,7 @@ export class LeadsController {
           email: 'contact@example.test',
           source: 'REFERRAL',
           referrerName: 'Jane Mwangi',
-          productInterest: 'Website',
+          productInterest: 'RETAIL_POS',
           estimatedValue: '12500.50',
           currency: 'KES',
           nextAction: 'Schedule discovery call',
@@ -144,7 +152,22 @@ export class LeadsController {
           example: 'Jane Mwangi',
           description: 'Required when source is REFERRAL.',
         },
-        productInterest: { type: 'string' },
+        productInterest: {
+          type: 'string',
+          enum: [
+            'RETAIL_POS',
+            'CAR_WASH_AUTOMATION',
+            'ERP',
+            'VISITOR_SECURITY_SYSTEM',
+            'HIRING_PLATFORM',
+            'CUSTOM_BUILD',
+          ],
+        },
+        acknowledgeDuplicates: {
+          type: 'boolean',
+          description:
+            'Send true after the user reviewed the possible duplicates reported by a 409 LEAD_DUPLICATE_SUSPECTED.',
+        },
         notes: { type: 'string' },
         estimatedValue: {
           type: 'string',
@@ -167,6 +190,33 @@ export class LeadsController {
     return this.leads.create(body, user, requestIdOf(request));
   }
 
+  @Post('duplicate-check')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission(PermissionKey.LeadsCreate)
+  @ApiOperation({
+    summary: 'Check a phone number and company name against existing leads',
+    description:
+      'Phone numbers are compared by digits (so `0712 345 678` equals `+254712345678`); company names ignore case, spacing, punctuation and a trailing Ltd/Limited. Only leads the caller may read are described; matches in other pipelines are only counted.',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        phone: { type: 'string', maxLength: 40 },
+        companyName: { type: 'string', maxLength: 200 },
+        excludeLeadId: { type: 'string', format: 'uuid', description: 'The lead being edited.' },
+      },
+    },
+  })
+  @DocDuplicateCheck()
+  duplicateCheck(
+    @Body({ schema: duplicateCheckSchema }) body: DuplicateCheckBody,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<LeadDuplicateCheckResult> {
+    return this.duplicates.check(body, user);
+  }
+
   @Get(':id')
   @RequirePermission(PermissionKey.LeadsRead)
   @ApiOperation({
@@ -185,8 +235,18 @@ export class LeadsController {
   @Get(':id/history')
   @RequirePermission(PermissionKey.LeadsRead)
   @ApiParam({ name: 'id', format: 'uuid' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: '1-based page; defaults to 1.' })
-  @ApiQuery({ name: 'pageSize', required: false, type: Number, description: 'Defaults to 25; maximum 100.' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: '1-based page; defaults to 1.',
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    type: Number,
+    description: 'Defaults to 25; maximum 100.',
+  })
   @ApiOperation({ summary: 'Read a lead’s lifecycle history' })
   @DocLeadHistory()
   history(
@@ -197,11 +257,75 @@ export class LeadsController {
     return this.leads.history(id, query, user);
   }
 
+  @Get(':id/reminders')
+  @RequirePermission(PermissionKey.LeadsRead)
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: '1-based page; defaults to 1.',
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    type: Number,
+    description: 'Defaults to 25; maximum 100.',
+  })
+  @ApiOperation({
+    summary: 'Read a lead’s next-action reminder delivery records',
+    description:
+      'One record per follow-up instant, with delivery status, attempts and the reason for any failure or skip. Reminders are sent by the scheduled `leads:send-reminders` worker.',
+  })
+  @DocLeadReminders()
+  reminders(
+    @Param('id', { schema: leadIdSchema }) id: string,
+    @Query({ schema: leadRemindersQuerySchema }) query: LeadHistoryQuery,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Paginated<LeadReminderDto>> {
+    return this.leads.reminders(id, query, user);
+  }
+
   @Post(':id/transitions')
   @HttpCode(HttpStatus.OK)
   @RequirePermission(PermissionKey.LeadsUpdate)
   @ApiParam({ name: 'id', format: 'uuid' })
-  @ApiBody({ schema: { type: 'object', additionalProperties: false, required: ['fromStage', 'toStage'], properties: { fromStage: { type: 'string', enum: ['NEW_LEAD', 'VISITS_AND_CALLS', 'QUALIFIED', 'SCOPE_ALIGNMENT', 'TOR_QUOTE_SENT', 'DISQUALIFIED', 'WON', 'LOST'] }, toStage: { type: 'string', enum: ['NEW_LEAD', 'VISITS_AND_CALLS', 'QUALIFIED', 'SCOPE_ALIGNMENT', 'TOR_QUOTE_SENT', 'DISQUALIFIED', 'WON', 'LOST'] }, reason: { type: 'string', maxLength: 1000 } } } })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['fromStage', 'toStage'],
+      properties: {
+        fromStage: {
+          type: 'string',
+          enum: [
+            'NEW_LEAD',
+            'VISITS_AND_CALLS',
+            'QUALIFIED',
+            'SCOPE_ALIGNMENT',
+            'TOR_QUOTE_SENT',
+            'DISQUALIFIED',
+            'WON',
+            'LOST',
+          ],
+        },
+        toStage: {
+          type: 'string',
+          enum: [
+            'NEW_LEAD',
+            'VISITS_AND_CALLS',
+            'QUALIFIED',
+            'SCOPE_ALIGNMENT',
+            'TOR_QUOTE_SENT',
+            'DISQUALIFIED',
+            'WON',
+            'LOST',
+          ],
+        },
+        reason: { type: 'string', maxLength: 1000 },
+      },
+    },
+  })
   @ApiOperation({
     summary: 'Move a lead through an approved forward pipeline transition',
     description:
@@ -221,7 +345,33 @@ export class LeadsController {
   @HttpCode(HttpStatus.OK)
   @RequirePermission(PermissionKey.LeadsUpdate)
   @ApiParam({ name: 'id', format: 'uuid' })
-  @ApiBody({ schema: { type: 'object', additionalProperties: false, required: ['fromStage', 'reason'], properties: { fromStage: { type: 'string', enum: ['VISITS_AND_CALLS'] }, reason: { type: 'string', enum: ['NO_BUDGET', 'NO_DECISION_MAKER', 'NEED_DOES_NOT_FIT', 'CHOSE_COMPETITOR', 'UNRESPONSIVE', 'TIMING_REVISIT_LATER', 'OTHER'] }, revisitOn: { type: 'string', format: 'date', description: 'Required for TIMING_REVISIT_LATER; otherwise omit.' } } } })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['fromStage', 'reason'],
+      properties: {
+        fromStage: { type: 'string', enum: ['VISITS_AND_CALLS'] },
+        reason: {
+          type: 'string',
+          enum: [
+            'NO_BUDGET',
+            'NO_DECISION_MAKER',
+            'NEED_DOES_NOT_FIT',
+            'CHOSE_COMPETITOR',
+            'UNRESPONSIVE',
+            'TIMING_REVISIT_LATER',
+            'OTHER',
+          ],
+        },
+        revisitOn: {
+          type: 'string',
+          format: 'date',
+          description: 'Required for TIMING_REVISIT_LATER; otherwise omit.',
+        },
+      },
+    },
+  })
   @ApiOperation({
     summary: 'Disqualify a lead and optionally schedule revisit later',
     description:
@@ -241,7 +391,17 @@ export class LeadsController {
   @HttpCode(HttpStatus.OK)
   @RequirePermission(PermissionKey.LeadsUpdate)
   @ApiParam({ name: 'id', format: 'uuid' })
-  @ApiBody({ schema: { type: 'object', additionalProperties: false, required: ['fromStage', 'reason'], properties: { fromStage: { type: 'string', enum: ['TOR_QUOTE_SENT'] }, reason: { type: 'string', minLength: 1, maxLength: 1000 } } } })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['fromStage', 'reason'],
+      properties: {
+        fromStage: { type: 'string', enum: ['TOR_QUOTE_SENT'] },
+        reason: { type: 'string', minLength: 1, maxLength: 1000 },
+      },
+    },
+  })
   @ApiOperation({
     summary: 'Mark a ToR-sent lead Lost and retain its reason',
     description:

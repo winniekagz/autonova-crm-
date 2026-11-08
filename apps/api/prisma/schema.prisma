@@ -32,6 +32,31 @@ enum LeadSource {
   EXISTING_CLIENT_UPSELL
 }
 
+enum ProductInterest {
+  RETAIL_POS
+  CAR_WASH_AUTOMATION
+  ERP
+  VISITOR_SECURITY_SYSTEM
+  HIRING_PLATFORM
+  CUSTOM_BUILD
+}
+
+enum LeadReminderStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+enum LeadReminderReason {
+  SMTP_NOT_CONFIGURED
+  DELIVERY_FAILED
+  LEAD_NOT_ACTIVE
+  FOLLOW_UP_CHANGED
+  RECIPIENT_UNAVAILABLE
+  TOO_OVERDUE
+}
+
 enum LeadStage {
   NEW_LEAD
   VISITS_AND_CALLS
@@ -80,6 +105,7 @@ model User {
   leadTransitions   LeadStageHistory[] @relation("LeadTransitionActor")
   lostLeads         Lead[]             @relation("LeadLostBy")
   disqualifiedLeads Lead[]             @relation("LeadDisqualifiedBy")
+  leadReminders     LeadReminder[]     @relation("LeadReminderRecipient")
 
   @@map("users")
 }
@@ -109,7 +135,11 @@ model Lead {
   email                  String?
   source                 LeadSource
   referrerName           String?                     @map("referrer_name")
-  productInterest        String?                     @map("product_interest")
+  productInterest        ProductInterest?            @map("product_interest")
+  legacyProductInterest  String?                     @map("legacy_product_interest")
+  /// Comparison keys for duplicate detection; always written with the lead (domain/lead-duplicates.ts).
+  phoneNormalized        String?                     @map("phone_normalized")
+  companyNameNormalized  String?                     @map("company_name_normalized")
   notes                  String?
   estimatedValue         Decimal?                    @map("estimated_value") @db.Decimal(14, 2)
   currency               String                      @default("KES")
@@ -134,14 +164,41 @@ model Lead {
   lostBy         User?              @relation("LeadLostBy", fields: [lostByUserId], references: [id], onDelete: Restrict)
   disqualifiedBy User?              @relation("LeadDisqualifiedBy", fields: [disqualifiedByUserId], references: [id], onDelete: Restrict)
   stageHistory   LeadStageHistory[]
+  reminders      LeadReminder[]
 
   @@index([ownerUserId, stage, updatedAt(sort: Desc)])
+  @@index([phoneNormalized])
+  @@index([companyNameNormalized])
   @@index([nextActionAt])
   @@index([createdAt(sort: Desc)])
   @@map("leads")
 }
 
 /// Immutable domain history. The runtime DB role receives INSERT/SELECT only.
+/// One delivery record per lead follow-up instant. (lead_id, due_at) is unique, so a follow-up is
+/// reminded at most once no matter how often or from how many processes the worker runs.
+model LeadReminder {
+  id              String              @id @default(uuid(7)) @db.Uuid
+  leadId          String              @map("lead_id") @db.Uuid
+  recipientUserId String              @map("recipient_user_id") @db.Uuid
+  dueAt           DateTime            @map("due_at") @db.Timestamptz(3)
+  status          LeadReminderStatus  @default(PENDING)
+  attempts        Int                 @default(0)
+  nextAttemptAt   DateTime            @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  lastAttemptAt   DateTime?           @map("last_attempt_at") @db.Timestamptz(3)
+  sentAt          DateTime?           @map("sent_at") @db.Timestamptz(3)
+  reason          LeadReminderReason?
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  lead      Lead @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  recipient User @relation("LeadReminderRecipient", fields: [recipientUserId], references: [id], onDelete: Restrict)
+
+  @@unique([leadId, dueAt])
+  @@index([status, nextAttemptAt])
+  @@map("lead_reminders")
+}
+
 model LeadStageHistory {
   id                     String                      @id @default(uuid(7)) @db.Uuid
   leadId                 String                      @map("lead_id") @db.Uuid
