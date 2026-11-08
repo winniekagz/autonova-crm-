@@ -1,6 +1,6 @@
 # Flow: Lead management and pipeline
 
-**Implementation status:** 🟡 SOW §4.1 lead capture is implemented (product catalogue, duplicate warning, next-action email reminders) together with lead CRUD and constrained lifecycle transitions. Companies/contacts linkage, qualification scoring, Won conversion, owner reassignment, and deployment of the recurring workers remain open.
+**Implementation status:** 🟡 SOW §4.1 lead capture is implemented (product catalogue, duplicate warning, next-action email reminders) together with lead CRUD and constrained lifecycle transitions. Qualification scoring, Won conversion, owner reassignment, and deployment of the recurring workers remain open.
 
 ## Purpose
 

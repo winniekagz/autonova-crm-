@@ -3,7 +3,7 @@
 **Current API snapshot:** `0.0.0` · **Base path:** `/api/v1` · **Format:** JSON
 
 This reference describes endpoints available in the current code. Director MFA and the first persisted
-lead workflow are implemented. Activities, qualification, quotations, ToRs, signature, client
+lead workflow, companies and contacts, and visit and call reports are implemented. Qualification, quotations, ToRs, signature, client
 conversion, billing, and support remain future work. The interactive Swagger page and OpenAPI JSON
 are generated from the API code.
 
@@ -182,37 +182,86 @@ the Swagger operation itself.
 
 ## Endpoints available now
 
-| Method  | Endpoint                              | Access                | Purpose                                                                     |
-| ------- | ------------------------------------- | --------------------- | --------------------------------------------------------------------------- |
-| `GET`   | `/api/v1/health/live`                 | Public                | Confirms the API process is running.                                        |
-| `GET`   | `/api/v1/health`                      | Public                | Readiness check; confirms PostgreSQL is reachable.                          |
-| `POST`  | `/api/v1/auth/login`                  | Public                | Sign in with email and password; returns an access token.                   |
-| `GET`   | `/api/v1/auth/mfa/status`             | Bearer; Director      | Reports whether TOTP enrollment is complete.                                |
-| `POST`  | `/api/v1/auth/mfa/enrollment`         | Restricted Director   | Starts enrollment; returns a provisioning URI and manual setup key.         |
-| `POST`  | `/api/v1/auth/mfa/enrollment/confirm` | Restricted Director   | Confirms TOTP and returns recovery codes once.                              |
-| `POST`  | `/api/v1/auth/mfa/verify`             | Restricted Director   | Verifies TOTP for the current session.                                      |
-| `POST`  | `/api/v1/auth/mfa/recover`            | Restricted Director   | Consumes a recovery code and requires enrollment again.                     |
-| `GET`   | `/api/v1/auth/me`                     | Bearer token          | Returns the current account's roles, permissions, and MFA state.            |
-| `POST`  | `/api/v1/auth/logout`                 | Bearer token          | Revokes the current session; returns `204`.                                 |
-| `GET`   | `/api/v1/users`                       | `users:list`          | Lists users with pagination and optional `q`, `status`, and `role` filters. |
-| `POST`  | `/api/v1/users`                       | `users:create`        | Creates an invited user and sends the account setup email.                  |
-| `POST`  | `/api/v1/users/{id}/invitation`       | `users:create`        | Resends a fresh one-time account setup link.                                |
-| `POST`  | `/api/v1/auth/invitations/accept`     | Public, one-time link | Sets the initial password and activates the invited account.                |
-| `GET`   | `/api/v1/users/{id}`                  | `users:read`          | Reads one safe user record by UUID.                                         |
-| `PATCH` | `/api/v1/users/{id}`                  | `users:update`        | Changes a user's display name.                                              |
-| `PUT`   | `/api/v1/users/{id}/roles`            | `users:assign_roles`  | Replaces the target user's roles; you cannot change your own roles.         |
-| `POST`  | `/api/v1/users/{id}/disable`          | `users:disable`       | Disables a user and revokes their sessions.                                 |
-| `GET`   | `/api/v1/roles`                       | `roles:list`          | Lists assignable system roles.                                              |
-| `GET`   | `/api/v1/leads`                       | `leads:list`          | Lists leads in the caller's permitted scope with pagination/search.         |
-| `POST`  | `/api/v1/leads`                       | `leads:create`        | Creates a caller-owned lead in `NEW_LEAD`.                                  |
-| `POST`  | `/api/v1/leads/duplicate-check`       | `leads:create`        | Lists readable possible duplicates by phone/company, plus a hidden count.   |
-| `GET`   | `/api/v1/leads/{id}`                  | `leads:read`          | Reads a lead within the caller's permitted scope.                           |
-| `GET`   | `/api/v1/leads/{id}/reminders`        | `leads:read`          | Returns paginated next-action reminder delivery records.                    |
-| `PATCH` | `/api/v1/leads/{id}`                  | `leads:update`        | Updates lead details and follow-up; stage/owner cannot be changed.          |
-| `GET`   | `/api/v1/leads/{id}/history`          | `leads:read`          | Returns paginated stage history, including scheduled revisit events.        |
-| `POST`  | `/api/v1/leads/{id}/transitions`      | `leads:update`        | Advances the lead through an allowed forward transition.                    |
-| `POST`  | `/api/v1/leads/{id}/disqualification` | `leads:update`        | Disqualifies a lead with a reason and optional revisit date.                |
-| `POST`  | `/api/v1/leads/{id}/lost`             | `leads:update`        | Marks a ToR/quote-stage lead Lost with a required reason.                   |
+| Method  | Endpoint                              | Access                           | Purpose                                                                     |
+| ------- | ------------------------------------- | -------------------------------- | --------------------------------------------------------------------------- |
+| `GET`   | `/api/v1/health/live`                 | Public                           | Confirms the API process is running.                                        |
+| `GET`   | `/api/v1/health`                      | Public                           | Readiness check; confirms PostgreSQL is reachable.                          |
+| `POST`  | `/api/v1/auth/login`                  | Public                           | Sign in with email and password; returns an access token.                   |
+| `GET`   | `/api/v1/auth/mfa/status`             | Bearer; Director                 | Reports whether TOTP enrollment is complete.                                |
+| `POST`  | `/api/v1/auth/mfa/enrollment`         | Restricted Director              | Starts enrollment; returns a provisioning URI and manual setup key.         |
+| `POST`  | `/api/v1/auth/mfa/enrollment/confirm` | Restricted Director              | Confirms TOTP and returns recovery codes once.                              |
+| `POST`  | `/api/v1/auth/mfa/verify`             | Restricted Director              | Verifies TOTP for the current session.                                      |
+| `POST`  | `/api/v1/auth/mfa/recover`            | Restricted Director              | Consumes a recovery code and requires enrollment again.                     |
+| `GET`   | `/api/v1/auth/me`                     | Bearer token                     | Returns the current account's roles, permissions, and MFA state.            |
+| `POST`  | `/api/v1/auth/logout`                 | Bearer token                     | Revokes the current session; returns `204`.                                 |
+| `GET`   | `/api/v1/users`                       | `users:list`                     | Lists users with pagination and optional `q`, `status`, and `role` filters. |
+| `POST`  | `/api/v1/users`                       | `users:create`                   | Creates an invited user and sends the account setup email.                  |
+| `POST`  | `/api/v1/users/{id}/invitation`       | `users:create`                   | Resends a fresh one-time account setup link.                                |
+| `POST`  | `/api/v1/auth/invitations/accept`     | Public, one-time link            | Sets the initial password and activates the invited account.                |
+| `GET`   | `/api/v1/users/{id}`                  | `users:read`                     | Reads one safe user record by UUID.                                         |
+| `PATCH` | `/api/v1/users/{id}`                  | `users:update`                   | Changes a user's display name.                                              |
+| `PUT`   | `/api/v1/users/{id}/roles`            | `users:assign_roles`             | Replaces the target user's roles; you cannot change your own roles.         |
+| `POST`  | `/api/v1/users/{id}/disable`          | `users:disable`                  | Disables a user and revokes their sessions.                                 |
+| `GET`   | `/api/v1/roles`                       | `roles:list`                     | Lists assignable system roles.                                              |
+| `GET`   | `/api/v1/leads`                       | `leads:list`                     | Lists leads in the caller's permitted scope with pagination/search.         |
+| `POST`  | `/api/v1/leads`                       | `leads:create`                   | Creates a caller-owned lead in `NEW_LEAD`.                                  |
+| `POST`  | `/api/v1/leads/duplicate-check`       | `leads:create`                   | Lists readable possible duplicates by phone, plus a hidden count.           |
+| `PATCH` | `/api/v1/leads/{id}/relationships`    | `leads:update`, `companies:read` | Links a lead to a company, primary contact and additional contacts.         |
+| `GET`   | `/api/v1/leads/{id}`                  | `leads:read`                     | Reads a lead within the caller's permitted scope.                           |
+| `GET`   | `/api/v1/leads/{id}/reminders`        | `leads:read`                     | Returns paginated next-action reminder delivery records.                    |
+| `PATCH` | `/api/v1/leads/{id}`                  | `leads:update`                   | Updates lead details and follow-up; stage/owner cannot be changed.          |
+| `GET`   | `/api/v1/leads/{id}/history`          | `leads:read`                     | Returns paginated stage history, including scheduled revisit events.        |
+| `POST`  | `/api/v1/leads/{id}/transitions`      | `leads:update`                   | Advances the lead through an allowed forward transition.                    |
+| `POST`  | `/api/v1/leads/{id}/disqualification` | `leads:update`                   | Disqualifies a lead with a reason and optional revisit date.                |
+| `POST`  | `/api/v1/leads/{id}/lost`             | `leads:update`                   | Marks a ToR/quote-stage lead Lost with a required reason.                   |
+
+| `GET` | `/api/v1/companies` | `companies:list` | Lists/searches companies in the caller's scope (`q`, `industry`, `includeArchived`, pagination). |
+| `POST` | `/api/v1/companies` | `companies:create` | Creates a company; KRA PIN match refused, name match needs `acknowledgeDuplicates`. |
+| `POST` | `/api/v1/companies/duplicate-check` | `companies:create` | Returns `exact` (KRA PIN), `potential` (name) and a hidden count. |
+| `GET` | `/api/v1/companies/{id}` | `companies:read` | Reads a company with active-contact and visible-lead counts. |
+| `PATCH` | `/api/v1/companies/{id}` | `companies:update` | Updates a company; duplicate rules apply only to a changed name or PIN. |
+| `POST` | `/api/v1/companies/{id}/archive` | `companies:archive` | Archives a company with no open leads; releases its KRA PIN. |
+| `POST` | `/api/v1/companies/{id}/restore` | `companies:archive` | Restores an archived company if its KRA PIN is still free. |
+| `GET` | `/api/v1/companies/{id}/leads` | `companies:read`, `leads:list` | Paginated leads of the company (Directors all, others their own). |
+| `GET` | `/api/v1/companies/{companyId}/contacts` | `companies:read` | Paginated contacts, decision-makers first. |
+| `POST` | `/api/v1/companies/{companyId}/contacts` | `companies:create` | Adds a contact to a visible, non-archived company. |
+| `GET` | `/api/v1/contacts/{id}` | `companies:read` | Reads a contact whose company the caller may see. |
+| `PATCH` | `/api/v1/contacts/{id}` | `companies:update` | Updates a contact; its company cannot change. |
+| `POST` | `/api/v1/contacts/{id}/archive` | `companies:archive` | Archives a contact that no lead uses. |
+| `POST` | `/api/v1/contacts/{id}/restore` | `companies:archive` | Restores an archived contact. |
+
+| `GET` | `/api/v1/leads/{leadId}/activities` | `activities:list` | Paginated reports of a visible lead, newest first (`page`, `pageSize`, `type`). |
+| `POST` | `/api/v1/leads/{leadId}/activities` | `activities:create` | Records a visit, call, demo or meeting; never changes the lead's stage. |
+| `GET` | `/api/v1/leads/{leadId}/activities/{id}` | `activities:read` | Reads one report of that lead. |
+| `PATCH` | `/api/v1/leads/{leadId}/activities/{id}` | `activities:update` | Edits a report (its creator or a Director). The audit records the changed fields. |
+| `POST` | `/api/v1/leads/{leadId}/activities/{id}/archive` | `activities:archive` | Archives a report. **Director only; body `{ "reason" }` required.** Nothing is deleted. |
+| `POST` | `/api/v1/leads/{leadId}/activities/{id}/restore` | `activities:archive` | Restores an archived report (Director only). |
+| `POST` | `/api/v1/leads/{leadId}/activities/{id}/attendees/{attendeeId}/link` | `activities:update` | Links an outside attendee to a contact of the lead's company (body `{ "contactId" }`); creator or Director. Never creates a contact. |
+| `POST` | `/api/v1/leads/{leadId}/activities/{id}/hold` | `activities:retention` | Places a legal hold or approved retention exception (body `{ "reference", "reason" }`; Director only). |
+| `DELETE`| `/api/v1/leads/{leadId}/activities/{id}/hold` | `activities:retention` | Lifts the hold (body `{ "reason" }`; Director only). |
+| `GET` | `/api/v1/leads/{leadId}/activities/{id}/attachments` | `activities:read` | Lists a report's active attachments. |
+| `POST` | `/api/v1/leads/{leadId}/activities/{id}/attachments` | `activities:update` | Uploads one photo, voice note or document (`multipart/form-data`: `category`, `file`, and `recordingNoticeGiven=true` for a voice note). |
+| `GET` | `/api/v1/leads/{leadId}/activities/{id}/attachments/{attachmentId}` | `activities:read` | Downloads an attachment as a file; never inline. |
+| `DELETE`| `/api/v1/leads/{leadId}/activities/{id}/attachments/{attachmentId}` | `activities:archive` | Archives an attachment. **Director only; body `{ "reason" }` required.** The stored file is purged later only by the reviewed retention process. |
+
+Reports are always reached through their lead: a wrong, unknown or invisible lead or report id answers
+`404`. `occurredAt` is when the interaction happened (an instant, entered on Nairobi's clock) and may be
+in the past but not in the future; `createdAt` and `updatedAt` are separate. `gps` is optional and only
+accepted on `VISIT`. Attendees are `{ "contactId": "..." }` (a contact of the lead's company) or
+`{ "name": "...", "organisation": "..." }`. Upload limits (configurable): photos 10 MB (JPEG, PNG, WebP), documents 25 MB (PDF, DOCX, XLSX, CSV), voice notes
+20 MB (MP3, M4A, WAV, WebM), 50 MB and 20 files per report; content is checked, and files are **not** virus-scanned.
+A voice note must carry `recordingNoticeGiven=true`. New error codes: `ACTIVITY_DIRECTOR_ONLY`,
+`ATTENDEE_NOT_EXTERNAL`, `ACTIVITY_HOLD_EXISTS`, `ACTIVITY_NOT_HELD`, `RECORDING_NOTICE_REQUIRED`,
+`ATTACHMENT_TOTAL_EXCEEDED`. There is no HTTP route that purges; retention runs from the command line. See
+[flows/sales-activities](flows/sales-activities.md).
+
+Companies and contacts follow a visibility rule, not just a permission: Directors see every company;
+other users see companies they created or that have one of their own leads. An invisible company is
+reported as `404 COMPANY_NOT_FOUND`, exactly like a missing one. Lead DTOs now carry `company`,
+`primaryContact` and `additionalContacts`; `companyName` is the linked company's name (the original
+text only for leads not yet linked), and `companyName` is no longer accepted when creating or updating
+a lead. `POST /leads` takes `companyId`, `primaryContactId` and `additionalContactIds`; change them later
+with `PATCH /leads/{id}/relationships`. See [flows/companies-and-contacts](flows/companies-and-contacts.md).
 
 Business Development lead permissions are scoped to records they own. Directors can view all
 leads. Technical Lead and Finance lead access remains denied pending stakeholder approval. New leads

@@ -33,7 +33,8 @@ erDiagram
   leads ||--o{ lead_contacts : involves
   users ||--o{ leads : owns
   leads ||--o{ activities : has
-  activities ||--o{ attachments : has
+  activities ||--o{ activity_attendees : has
+  activities ||--o{ activity_attachments : has
   leads ||--o| qualifications : scored_by
   leads ||--o{ tors : has
   tors ||--o{ tor_versions : versioned_as
@@ -55,7 +56,7 @@ erDiagram
 
 > **Step 5 (user administration) required no schema change.** `permissions` and `role_permissions` are now populated by `pnpm db:seed` (7 grants, all Director). Locks: user changes that can alter _who is an active Director_ take one transaction-scoped advisory lock (`pg_advisory_xact_lock(7204001)`) shared by the bootstrap CLI, role changes and disabling.
 
-## Implemented tables (✅ migrations include identity/access/audit, sessions/refresh tokens, users/invitations, initial leads, `20261108100000_lead_lifecycle`, and `20261108140000_lead_capture_completion`)
+## Implemented tables (✅ migrations include identity/access/audit, sessions/refresh tokens, users/invitations, initial leads, `20261108100000_lead_lifecycle`, and `20261108140000_lead_capture_completion`, `20261108190000_companies_and_contacts`, and `20261108210000_activities_and_attachments`)
 
 | Table              | Purpose                                                                                                       | Key constraints                                                                                                                                                                                                                                        | Indexes (query pattern)                                                                                                                                                                                |
 | ------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -109,3 +110,19 @@ erDiagram
 - `leads.product_interest` is the `ProductInterest` enum; unmatched legacy text is preserved in `leads.legacy_product_interest`.
 - `leads.phone_normalized` / `leads.company_name_normalized` (CHECK-constrained, indexed) support duplicate warnings; rules in `domain/lead-duplicates.ts`, mirrored in the migration backfill.
 - `lead_reminders`: one delivery record per `(lead_id, due_at)` (UNIQUE); status/attempt/reason CHECKs keep SENT ⇔ `sent_at` and require a reason for FAILED/SKIPPED; the app role cannot DELETE or TRUNCATE it.
+
+### Companies and contacts (`20261108190000_companies_and_contacts`)
+
+- `companies`, `contacts`, `lead_contacts`; `leads.company_id` and `leads.primary_contact_id` (nullable, `ON DELETE RESTRICT`). `lead_contacts` cascades with its lead. Companies and contacts are archived (`archived_at`), never deleted: the application role has `DELETE`/`TRUNCATE` revoked.
+- Constraints: KRA PIN format and a partial unique index over non-archived rows; counts and link-count ranges; lower-case contact email; name not blank; archive columns set together; a primary contact requires a company.
+- Triggers (cross-table rules a foreign key cannot express): `contacts.company_id` is immutable; a lead's primary contact and every `lead_contacts` row must belong to the lead's company.
+- Indexes: `companies(name_normalized)`, `companies(created_by_user_id)`, `contacts(company_id, archived_at)`, `leads(company_id, owner_user_id)`, `leads(primary_contact_id)`, `lead_contacts(contact_id)`. Deliberately not indexed: contact email and phone (no query uses them).
+- Backfill: one company per distinct normalised `leads.company_name`, flagged `needs_review` when spellings differ; `leads.company_name` is left untouched. See [flows/companies-and-contacts](flows/companies-and-contacts.md).
+
+### Visit and call reports (`20261108210000_activities_and_attachments`, `20261109090000_activity_governance`)
+
+- `activities`, `activity_attendees`, `activity_attachments`; enums `ActivityType` and `AttachmentCategory`. An activity belongs to exactly one lead (`RESTRICT`, immutable by trigger). Activities and attachment metadata are archived, never deleted: the app role has `DELETE`/`TRUNCATE` revoked on them; attendees may be replaced on edit and keep `DELETE`.
+- Constraints: GPS pair, range and visit-only; discussion not blank; attendee is a contact **or** an outside person; attachment size, SHA-256 and storage-key shape; archive columns set together.
+- Governance migration: `activities.gps_recorded_at` (retention clock; backfilled from `created_at`), `gps_cleared_at`, `archived_reason`, hold columns (`hold_reference`, `hold_reason`, `hold_placed_at`, `hold_placed_by_user_id`); `activity_attendees.linked_at`/`linked_by_user_id` (an outside attendee later linked keeps its name); `activity_attachments.recording_notice_given` (voice notes only), `archived_by_user_id`, `archived_reason`, and a purge record (`purged_at`, `purged_by_user_id`, `purge_reason`, `purge_reference`; a purge needs the file archived). The per-file size ceiling is 100 MB (the API enforces the configured per-category limits). Reason-required checks are `NOT VALID` so rows archived earlier remain valid. Partial indexes support the retention review (`activity_attachments(created_at)` for unpurged voice notes, `activities(gps_recorded_at)` for stored coordinates).
+- Trigger: a contact attendee must belong to the company of the activity's lead.
+- Indexes: `activities(lead_id, occurred_at DESC, id DESC)` (timeline, stable order), `activities(created_by_user_id)`, `activity_attendees(activity_id)` and `(contact_id)`, `activity_attachments(activity_id, archived_at)`, unique `activity_attachments(storage_key)`. Binary content lives outside the database behind the `FileStorage` interface. See [flows/sales-activities](flows/sales-activities.md).
