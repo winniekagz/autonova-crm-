@@ -9,3 +9,9 @@ coverage
 apps/api/src/generated
 .DS_Store
 next-env.d.ts
+
+# stray tsc output next to sources
+packages/*/src/*.js
+packages/*/src/*.js.map
+packages/*/src/*.d.ts
+packages/*/src/*.d.ts.map

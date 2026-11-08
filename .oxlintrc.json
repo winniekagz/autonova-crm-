@@ -1,12 +1,22 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "oxc", "import"],
-  "categories": { "correctness": "error" },
+  "categories": {
+    "correctness": "error"
+  },
   "rules": {
     "typescript/no-explicit-any": "error",
     "typescript/no-non-null-assertion": "error",
     "typescript/no-floating-promises": "error",
-    "typescript/consistent-type-imports": "off"
+    "typescript/consistent-type-imports": "off",
+    "max-lines": [
+      "error",
+      {
+        "max": 500,
+        "skipBlankLines": false,
+        "skipComments": false
+      }
+    ]
   },
   "ignorePatterns": [
     "**/dist/**",
