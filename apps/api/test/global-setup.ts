@@ -44,20 +44,20 @@ export default async function setup(): Promise<void> {
   execFileSync('pnpm', ['exec', 'prisma', 'migrate', 'deploy'], {
     cwd: new URL('..', import.meta.url),
     env: process.env,
-    stdio: 'pipe',
+    stdio: 'inherit',
   });
 
   // The cluster-level role may not have a password on a fresh machine; make sure it can sign in.
   execFileSync('pnpm', ['run', 'db:provision-app-role'], {
     cwd: new URL('..', import.meta.url),
     env: process.env,
-    stdio: 'pipe',
+    stdio: 'inherit',
   });
 
   // Same seed as a real install: the four system roles.
   execFileSync('pnpm', ['run', 'db:seed'], {
     cwd: new URL('..', import.meta.url),
-    env: process.env,
-    stdio: 'pipe',
+    env: { ...process.env, DATABASE_URL: ownerUrl.toString() },
+    stdio: 'inherit',
   });
 }

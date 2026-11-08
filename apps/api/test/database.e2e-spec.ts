@@ -63,8 +63,15 @@ describe('database integrity (migrations applied to a fresh database)', () => {
     const user = await newUser('roleholder@autonova.test');
     const role = await prisma.role.create({ data: { key: 'temp_role', name: 'Temp' } });
     await prisma.userRole.create({ data: { userId: user.id, roleId: role.id } });
-    await expect(prisma.role.delete({ where: { id: role.id } })).rejects.toThrow();
-    await expect(prisma.user.delete({ where: { id: user.id } })).rejects.toThrow();
+    try {
+      await expect(prisma.role.delete({ where: { id: role.id } })).rejects.toThrow();
+      await expect(prisma.user.delete({ where: { id: user.id } })).rejects.toThrow();
+    } finally {
+      // Leave nothing behind: other suites list every role, and a stray one would break them
+      // depending on which file Vitest happens to run first.
+      await prisma.userRole.deleteMany({ where: { roleId: role.id } });
+      await prisma.role.delete({ where: { id: role.id } });
+    }
   });
 
   describe('audit log is append-only', () => {
