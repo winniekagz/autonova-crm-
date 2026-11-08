@@ -15,6 +15,8 @@ import { useAuth } from '@/features/auth/auth-context';
 import { can } from '@/features/auth/permissions';
 import { applyServerFieldErrors } from '@/lib/form-errors';
 import { nairobiDateOf, nairobiInstant } from '@/lib/nairobi-time';
+import { CompanyPicker, type PickedCompany } from '@/features/companies/company-picker';
+import { LeadContactPicker, type ContactSelection } from '@/features/companies/lead-contact-picker';
 import { DuplicateWarning } from './duplicate-warning';
 import { labelFor, leadErrorText, productLabel } from './lead-format';
 import { LEAD_FORM_FIELDS, leadFormSchema } from './lead-form-schema';
@@ -28,6 +30,11 @@ export function LeadForm({ lead }: { lead?: LeadDto }) {
   const save = useSaveLead(lead);
   const duplicates = useCheckDuplicates();
   const [formError, setFormError] = useState<string | null>(null);
+  const [company, setCompany] = useState<PickedCompany | null>(null);
+  const [contacts, setContacts] = useState<ContactSelection>({
+    primaryContactId: null,
+    additionalContactIds: [],
+  });
   const [acknowledged, setAcknowledged] = useState(false);
   const [confirmationRequired, setConfirmationRequired] = useState(false);
   const {
@@ -48,16 +55,14 @@ export function LeadForm({ lead }: { lead?: LeadDto }) {
       <Alert tone="warning">You do not have permission to {lead ? 'edit' : 'create'} leads.</Alert>
     );
 
-  // Looks for duplicates when the user leaves the phone or company field. An edit that keeps the
-  // saved phone and company has nothing new to check.
+  // Looks for duplicates when the user leaves the phone field. An edit that keeps the saved phone
+  // has nothing new to check. Company duplicates are handled on the company itself.
   const checkDuplicates = () => {
     const phone = (getValues('phone') ?? '').trim();
-    const companyName = (getValues('companyName') ?? '').trim();
-    if (!phone && !companyName) return;
-    if (lead && phone === (lead.phone ?? '') && companyName === (lead.companyName ?? '')) return;
+    if (!phone) return;
+    if (lead && phone === (lead.phone ?? '')) return;
     duplicates.mutate({
-      ...(phone ? { phone } : {}),
-      ...(companyName ? { companyName } : {}),
+      phone,
       ...(lead ? { excludeLeadId: lead.id } : {}),
     });
   };
@@ -73,6 +78,13 @@ export function LeadForm({ lead }: { lead?: LeadDto }) {
     try {
       const result = await save.mutateAsync({
         ...toLeadRequestBody(values),
+        ...(lead
+          ? {}
+          : {
+              companyId: company?.id ?? null,
+              primaryContactId: company ? contacts.primaryContactId : null,
+              additionalContactIds: company ? contacts.additionalContactIds : [],
+            }),
         ...(acknowledged ? { acknowledgeDuplicates: true } : {}),
       });
       if (!lead) router.replace(`/leads/${result.id}`);
@@ -117,11 +129,27 @@ export function LeadForm({ lead }: { lead?: LeadDto }) {
           error={errors.name?.message}
           {...register('name')}
         />
-        <TextField
-          label="Company (optional)"
-          error={errors.companyName?.message}
-          {...register('companyName', { onBlur: checkDuplicates, onChange: keyChanged })}
-        />
+        {lead ? null : (
+          <div className="space-y-3 sm:col-span-2">
+            <CompanyPicker
+              value={company}
+              label="Company (optional)"
+              onChange={(next) => {
+                setCompany(next);
+                // Contacts belong to one company, so choosing another starts with none selected.
+                setContacts({ primaryContactId: null, additionalContactIds: [] });
+              }}
+            />
+            {company ? (
+              <LeadContactPicker
+                key={company.id}
+                companyId={company.id}
+                value={contacts}
+                onChange={setContacts}
+              />
+            ) : null}
+          </div>
+        )}
         <TextField
           label="Phone"
           type="tel"

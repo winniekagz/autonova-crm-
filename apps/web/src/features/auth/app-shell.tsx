@@ -69,6 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const links = [
     { href: '/', label: 'Home', show: true },
     { href: '/leads', label: 'Leads', show: can(me, PermissionKey.LeadsList) },
+    { href: '/companies', label: 'Companies', show: can(me, PermissionKey.CompaniesList) },
     { href: '/users', label: 'Users', show: can(me, PermissionKey.UsersList) },
     { href: '/sessions', label: 'Sessions', show: true },
   ].filter((link) => link.show);

@@ -384,7 +384,7 @@ describe('LeadForm duplicate detection', () => {
     const user = userEvent.setup();
     mockApi({ 'POST /leads/duplicate-check': () => apiError(500, 'INTERNAL_ERROR') });
     renderAs(BD, <LeadForm />);
-    await user.type(screen.getByLabelText('Company (optional)'), 'Acme');
+    await user.type(screen.getByLabelText('Phone'), '0712345678');
     await user.tab();
     expect(await screen.findByText(/could not check for duplicates/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create lead' })).toBeEnabled();

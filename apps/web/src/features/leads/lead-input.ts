@@ -17,7 +17,6 @@ export function blankInput(): LeadInput {
 export function toInput(lead: LeadDto): LeadInput {
   return {
     name: lead.name,
-    ...(lead.companyName ? { companyName: lead.companyName } : {}),
     ...(lead.phone ? { phone: lead.phone } : {}),
     ...(lead.email ? { email: lead.email } : {}),
     source: lead.source,
@@ -38,7 +37,6 @@ export function toLeadRequestBody(values: LeadInput): LeadInput {
     ...values,
     name: values.name.trim(),
     nextActionAt: new Date(values.nextActionAt).toISOString(),
-    companyName: values.companyName?.trim() ?? '',
     phone: values.phone?.trim() ?? '',
     email: values.email?.trim().toLowerCase() ?? '',
     referrerName: values.referrerName?.trim() ?? '',

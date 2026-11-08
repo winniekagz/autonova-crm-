@@ -24,7 +24,7 @@ const requiredText = (max: number, empty: string, label: string) =>
 export const leadFormSchema = z
   .object({
     name: requiredText(200, "Enter the lead's name.", 'The name'),
-    companyName: optionalText(200, 'The company'),
+    companyId: z.string().nullable().optional(),
     phone: optionalText(40, 'The phone number'),
     email: z
       .string()
@@ -71,7 +71,7 @@ export const leadFormSchema = z
 /** Field names the API may report problems for; anything else it sends is ignored. */
 export const LEAD_FORM_FIELDS = [
   'name',
-  'companyName',
+  'companyId',
   'phone',
   'email',
   'source',

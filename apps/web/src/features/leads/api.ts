@@ -3,6 +3,7 @@ import type {
   LeadDuplicateCheckRequest,
   LeadDuplicateCheckResult,
   LeadReminderDto,
+  LeadRelationshipsRequest,
   LeadSaveRequest,
   LeadStageHistoryDto,
   Paginated,
@@ -19,6 +20,13 @@ import {
 import { apiRequest } from '@/lib/api-client';
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
+
+const isContactRef = (v: unknown) =>
+  isRecord(v) &&
+  typeof v.id === 'string' &&
+  typeof v.name === 'string' &&
+  (v.jobTitle === null || typeof v.jobTitle === 'string') &&
+  typeof v.archived === 'boolean';
 
 function parseLead(value: unknown): LeadDto {
   if (
@@ -45,6 +53,16 @@ function parseLead(value: unknown): LeadDto {
     typeof value.createdAt !== 'string' ||
     typeof value.updatedAt !== 'string' ||
     !(value.companyName === null || typeof value.companyName === 'string') ||
+    !(
+      value.company === null ||
+      (isRecord(value.company) &&
+        typeof value.company.id === 'string' &&
+        typeof value.company.name === 'string' &&
+        typeof value.company.archived === 'boolean')
+    ) ||
+    !(value.primaryContact === null || isContactRef(value.primaryContact)) ||
+    !Array.isArray(value.additionalContacts) ||
+    !value.additionalContacts.every(isContactRef) ||
     !(value.phone === null || typeof value.phone === 'string') ||
     !(value.email === null || typeof value.email === 'string') ||
     !(value.referrerName === null || typeof value.referrerName === 'string') ||
@@ -267,5 +285,12 @@ function parseReminderPage(value: unknown): Paginated<LeadReminderDto> {
 
 export const getLeadReminders = (token: string, id: string) =>
   apiRequest(`/leads/${encodeURIComponent(id)}/reminders?page=1&pageSize=20`, parseReminderPage, {
+    token,
+  });
+
+export const setLeadRelationships = (token: string, id: string, body: LeadRelationshipsRequest) =>
+  apiRequest(`/leads/${encodeURIComponent(id)}/relationships`, parseLead, {
+    method: 'PATCH',
+    body,
     token,
   });

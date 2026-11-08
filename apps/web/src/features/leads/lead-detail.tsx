@@ -5,6 +5,7 @@ import { Alert } from '@/components/ui/alert';
 import { formatNairobiDateTime } from '@/lib/nairobi-time';
 import { labelFor, productLabel } from './lead-format';
 import { LeadLifecycle } from './lead-lifecycle';
+import { LeadRelationships } from './lead-relationships';
 import { LeadReminders } from './lead-reminders';
 import { useLead } from './use-lead';
 
@@ -62,6 +63,7 @@ export function LeadDetail({ id }: { id: string }) {
           <dd className="mt-1 whitespace-pre-wrap text-sm">{lead.notes || '—'}</dd>
         </div>
       </dl>
+      <LeadRelationships lead={lead} />
       <LeadReminders lead={lead} />
       <LeadLifecycle lead={lead} />
       <Link className="mt-4 inline-block text-sm text-primary underline" href="/leads">

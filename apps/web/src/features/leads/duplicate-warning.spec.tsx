@@ -22,7 +22,7 @@ const result: LeadDuplicateCheckResult = {
       phone: '0712 345 678',
       stage: 'VISITS_AND_CALLS',
       ownerName: 'Sam',
-      matchedOn: ['PHONE', 'COMPANY'],
+      matchedOn: ['PHONE'],
       createdAt: '2026-11-01T08:00:00.000Z',
     },
   ],
@@ -58,9 +58,7 @@ describe('DuplicateWarning', () => {
       '/leads/l-7',
     );
     expect(
-      screen.getByText(
-        /Visits And Calls · Owner Sam · Added 1 Nov 2026 · same phone and same company/,
-      ),
+      screen.getByText(/Visits And Calls · Owner Sam · Added 1 Nov 2026 · same phone/),
     ).toBeInTheDocument();
   });
 

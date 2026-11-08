@@ -14,7 +14,7 @@ interface DuplicateWarningProps {
   onAcknowledgedChange: (checked: boolean) => void;
 }
 
-const MATCH_LABEL = { PHONE: 'same phone', COMPANY: 'same company' } as const;
+const MATCH_LABEL = { PHONE: 'same phone' } as const;
 
 /**
  * Shows possible duplicates and asks the user to confirm before saving. A match never blocks the

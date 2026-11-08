@@ -6,6 +6,9 @@ const lead = (over: Partial<LeadDto> = {}): LeadDto => ({
   id: 'l-1',
   name: 'Achieng',
   companyName: null,
+  company: null,
+  primaryContact: null,
+  additionalContacts: [],
   phone: null,
   email: null,
   source: 'WEBSITE',
@@ -71,11 +74,8 @@ describe('toInput', () => {
   });
 
   it('keeps optional fields that have a value, including a probability of zero', () => {
-    const input = toInput(
-      lead({ companyName: 'Otieno Ltd', email: 'a@b.test', probability: 0, estimatedValue: '10' }),
-    );
+    const input = toInput(lead({ email: 'a@b.test', probability: 0, estimatedValue: '10' }));
     expect(input).toMatchObject({
-      companyName: 'Otieno Ltd',
       email: 'a@b.test',
       probability: 0,
       estimatedValue: '10',
@@ -90,7 +90,6 @@ describe('toLeadRequestBody', () => {
     currency: 'USD',
     nextAction: 'Send proposal',
     nextActionAt: '2026-11-10T09:00:00.000Z',
-    companyName: '  Acme ',
     phone: ' 0700 ',
     email: '  Wanjiru@Example.TEST ',
     referrerName: ' Brian ',
@@ -104,7 +103,6 @@ describe('toLeadRequestBody', () => {
     expect(toLeadRequestBody(base)).toEqual({
       ...base,
       name: 'Wanjiru',
-      companyName: 'Acme',
       phone: '0700',
       email: 'wanjiru@example.test',
       referrerName: 'Brian',
@@ -123,7 +121,6 @@ describe('toLeadRequestBody', () => {
       estimatedValue: '   ',
     });
     expect(body).toMatchObject({
-      companyName: '',
       phone: '',
       email: '',
       referrerName: '',
