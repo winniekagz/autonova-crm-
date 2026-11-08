@@ -3,6 +3,7 @@ import {
   emailSchema,
   fullNameSchema,
   paginationQuerySchema,
+  passwordSchema,
   reasonSchema,
   uuidSchema,
 } from '@autonova/validation';
@@ -37,6 +38,14 @@ export const disableUserBodySchema = z.object({ reason: reasonSchema.optional() 
 export type DisableUserBody = z.infer<typeof disableUserBodySchema>;
 
 export const userIdParamSchema = uuidSchema;
+
+export const acceptInvitationSchema = z
+  .object({
+    token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+    password: passwordSchema,
+  })
+  .strict();
+export type AcceptInvitationBody = z.infer<typeof acceptInvitationSchema>;
 
 export const listUsersQuerySchema = paginationQuerySchema.extend({
   q: z.string().trim().min(1).max(100).optional(),

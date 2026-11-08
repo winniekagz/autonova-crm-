@@ -1,3 +1,15 @@
+import { requestIdOf } from '../../../common/request-id.js';
+import {
+  DocAcceptInvitation,
+  DocDisableUser,
+  DocGetUser,
+  DocInviteUser,
+  DocListRoles,
+  DocListUsers,
+  DocRenameUser,
+  DocResendInvitation,
+  DocSetRoles,
+} from './users.docs.js';
 import {
   Body,
   Controller,
@@ -11,6 +23,7 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -24,12 +37,13 @@ import { PermissionKey, SystemRoleKey } from '@autonova/enums';
 import type { Paginated, RoleDto, UserDto } from '@autonova/contracts';
 import type { Request } from 'express';
 import type { AuthenticatedUser } from '../../auth/domain/authenticated-user.js';
-import { CurrentUser, RequirePermission } from '../../auth/presentation/decorators.js';
+import { CurrentUser, Public, RequirePermission } from '../../auth/presentation/decorators.js';
 import { ChangeUserRolesUseCase } from '../application/change-user-roles.use-case.js';
 import { CreateUserUseCase } from '../application/create-user.use-case.js';
 import { DisableUserUseCase } from '../application/disable-user.use-case.js';
 import { ReadUsersUseCases } from '../application/read-users.use-cases.js';
 import { UpdateUserUseCase } from '../application/update-user.use-case.js';
+import { UserInvitationsService } from '../application/user-invitations.service.js';
 import {
   changeRolesBodySchema,
   createUserBodySchema,
@@ -37,14 +51,15 @@ import {
   listUsersQuerySchema,
   updateUserBodySchema,
   userIdParamSchema,
+  acceptInvitationSchema,
   type ChangeRolesBody,
   type CreateUserBody,
   type DisableUserBody,
   type ListUsersQuery,
   type UpdateUserBody,
+  type AcceptInvitationBody,
 } from './users.schemas.js';
 
-const requestIdOf = (request: Request) => (typeof request.id === 'string' ? request.id : undefined);
 const roleKeys = Object.values(SystemRoleKey);
 
 /**
@@ -62,6 +77,7 @@ export class UsersController {
     private readonly update: UpdateUserUseCase,
     private readonly changeRoles: ChangeUserRolesUseCase,
     private readonly disable: DisableUserUseCase,
+    private readonly invitations: UserInvitationsService,
   ) {}
 
   @Get()
@@ -92,7 +108,7 @@ export class UsersController {
     type: String,
     description: 'Filter by system role key.',
   })
-  @ApiResponse({ status: 200, description: 'Paginated safe user records.' })
+  @DocListUsers()
   list(
     @Query({ schema: listUsersQuerySchema }) query: ListUsersQuery,
   ): Promise<Paginated<UserDto>> {
@@ -101,8 +117,22 @@ export class UsersController {
 
   @Post()
   @RequirePermission(PermissionKey.UsersCreate)
-  @ApiOperation({ summary: 'Invite a new internal user (created as INVITED, no password)' })
+  @ApiOperation({
+    summary: 'Invite a user and email a one-time account setup link',
+    description:
+      'Creates an INVITED account with no password and sends a 48-hour setup link. If email delivery fails, the account remains invited and an authorized administrator can resend from the user detail page.',
+  })
   @ApiBody({
+    examples: {
+      inviteBusinessUser: {
+        summary: 'Create an invited Business Development account',
+        value: {
+          email: 'bd.user@example.test',
+          fullName: 'Example Business User',
+          roles: ['business_development'],
+        },
+      },
+    },
     schema: {
       type: 'object',
       additionalProperties: false,
@@ -121,7 +151,7 @@ export class UsersController {
       },
     },
   })
-  @ApiResponse({ status: 201, description: 'Invited user record.' })
+  @DocInviteUser()
   invite(
     @Body({ schema: createUserBodySchema }) body: CreateUserBody,
     @CurrentUser() actor: AuthenticatedUser,
@@ -136,11 +166,33 @@ export class UsersController {
     });
   }
 
+  @Post(':id/invitation')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @RequirePermission(PermissionKey.UsersCreate)
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOperation({
+    summary: 'Resend the account setup email for an invited user',
+    description: 'Revokes older invitation links and sends a fresh 48-hour setup link.',
+  })
+  @ApiResponse({ status: 204, description: 'A new invitation email was sent.' })
+  @DocResendInvitation()
+  resendInvitation(
+    @Param('id', { schema: userIdParamSchema }) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+    @Req() request: Request,
+  ): Promise<void> {
+    return this.invitations.resend({
+      userId: id,
+      actorUserId: actor.id,
+      requestId: requestIdOf(request),
+    });
+  }
+
   @Get(':id')
   @RequirePermission(PermissionKey.UsersRead)
   @ApiOperation({ summary: 'Get one user' })
   @ApiParam({ name: 'id', format: 'uuid' })
-  @ApiResponse({ status: 200, description: 'Safe user record.' })
+  @DocGetUser()
   get(@Param('id', { schema: userIdParamSchema }) id: string): Promise<UserDto> {
     return this.read.get(id);
   }
@@ -150,6 +202,9 @@ export class UsersController {
   @ApiOperation({ summary: 'Update a user’s display name' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiBody({
+    examples: {
+      rename: { summary: 'Change the display name', value: { fullName: 'Example Updated Name' } },
+    },
     schema: {
       type: 'object',
       additionalProperties: false,
@@ -157,7 +212,7 @@ export class UsersController {
       properties: { fullName: { type: 'string' } },
     },
   })
-  @ApiResponse({ status: 200, description: 'Updated safe user record.' })
+  @DocRenameUser()
   rename(
     @Param('id', { schema: userIdParamSchema }) id: string,
     @Body({ schema: updateUserBodySchema }) body: UpdateUserBody,
@@ -177,6 +232,12 @@ export class UsersController {
   @ApiOperation({ summary: 'Replace a user’s roles (never your own)' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiBody({
+    examples: {
+      replaceRoles: {
+        summary: 'Replace roles on another user (not your own account)',
+        value: { roles: ['business_development'], reason: 'Role aligned to current duties' },
+      },
+    },
     schema: {
       type: 'object',
       additionalProperties: false,
@@ -194,7 +255,7 @@ export class UsersController {
       },
     },
   })
-  @ApiResponse({ status: 200, description: 'Updated safe user record.' })
+  @DocSetRoles()
   setRoles(
     @Param('id', { schema: userIdParamSchema }) id: string,
     @Body({ schema: changeRolesBodySchema }) body: ChangeRolesBody,
@@ -216,13 +277,19 @@ export class UsersController {
   @ApiOperation({ summary: 'Disable a user and revoke all their sessions' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiBody({
+    examples: {
+      disable: {
+        summary: 'Disable a disposable account and revoke its sessions',
+        value: { reason: 'Local API documentation smoke test' },
+      },
+    },
     schema: {
       type: 'object',
       additionalProperties: false,
       properties: { reason: { type: 'string' } },
     },
   })
-  @ApiResponse({ status: 200, description: 'Disabled safe user record.' })
+  @DocDisableUser()
   disableUser(
     @Param('id', { schema: userIdParamSchema }) id: string,
     @Body({ schema: disableUserBodySchema }) body: DisableUserBody,
@@ -247,8 +314,55 @@ export class RolesController {
   @Get()
   @RequirePermission(PermissionKey.RolesList)
   @ApiOperation({ summary: 'List assignable roles' })
-  @ApiResponse({ status: 200, description: 'System role keys, names, and descriptions.' })
+  @DocListRoles()
   list(): Promise<RoleDto[]> {
     return this.read.listRoles();
+  }
+}
+
+@ApiTags('auth')
+@Controller('auth/invitations')
+export class InvitationAcceptanceController {
+  constructor(private readonly invitations: UserInvitationsService) {}
+
+  @Public()
+  @Post('accept')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @ApiOperation({
+    summary: 'Set a password and activate an invited account',
+    description: 'Invitation links expire after 48 hours and can be used once.',
+  })
+  @ApiBody({
+    examples: {
+      accept: {
+        summary: 'Replace the token with the one from your invitation email',
+        value: {
+          token: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          password: 'use-a-unique-12-char-password',
+        },
+      },
+    },
+    schema: {
+      type: 'object',
+      required: ['token', 'password'],
+      additionalProperties: false,
+      properties: {
+        token: { type: 'string', description: 'Single-use token from the invitation link.' },
+        password: { type: 'string', minLength: 12, maxLength: 128 },
+      },
+    },
+  })
+  @ApiResponse({ status: 204, description: 'Account activated; the user can now sign in.' })
+  @DocAcceptInvitation()
+  accept(
+    @Body({ schema: acceptInvitationSchema }) body: AcceptInvitationBody,
+    @Req() request: Request,
+  ) {
+    return this.invitations.accept({
+      token: body.token,
+      password: body.password,
+      requestId: requestIdOf(request),
+    });
   }
 }
