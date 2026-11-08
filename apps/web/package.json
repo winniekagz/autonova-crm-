@@ -15,9 +15,14 @@
     "@autonova/contracts": "workspace:*",
     "@autonova/enums": "workspace:*",
     "@autonova/validation": "workspace:*",
+    "@hookform/resolvers": "^7.0.3",
+    "@tanstack/react-query": "^5.106.1",
     "next": "^16.4.5",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "react-hook-form": "^7.91.0",
+    "react-qr-code": "^2.2.0",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@autonova/config": "workspace:*",

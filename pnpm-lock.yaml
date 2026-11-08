@@ -92,6 +92,12 @@ importers:
       nestjs-pino:
         specifier: ^5.3.1
         version: 5.3.1(@nestjs/common@12.4.0(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@12.4.0)(pino-http@11.0.0)(pino@10.4.0)(rxjs@7.8.2)
+      nodemailer:
+        specifier: ^10.3.1
+        version: 10.3.1
+      otplib:
+        specifier: ^13.6.0
+        version: 13.6.0
       pg:
         specifier: ^8.16.3
         version: 8.23.1
@@ -129,6 +135,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
+      '@types/nodemailer':
+        specifier: ^8.0.2
+        version: 8.0.2
       '@types/pg':
         specifier: ^8.16.0
         version: 8.23.1
@@ -155,7 +164,7 @@ importers:
         version: 8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@types/node@24.19.2)(jsdom@29.1.1(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+        version: 4.1.12(@types/node@24.19.2)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
   apps/web:
     dependencies:
@@ -168,6 +177,12 @@ importers:
       '@autonova/validation':
         specifier: workspace:*
         version: link:../../packages/validation
+      '@hookform/resolvers':
+        specifier: ^7.0.3
+        version: 7.0.3(@standard-schema/spec@1.1.0)(ajv@8.20.0)(react-hook-form@7.91.0(@types/react@19.3.0)(react@19.3.1))(valibot@1.4.2(typescript@6.0.3))(zod@4.6.7)
+      '@tanstack/react-query':
+        specifier: ^5.106.1
+        version: 5.106.1(@types/react@19.3.0)(react@19.3.1)
       next:
         specifier: ^16.4.5
         version: 16.4.5(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -177,6 +192,15 @@ importers:
       react-dom:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
+      react-hook-form:
+        specifier: ^7.91.0
+        version: 7.91.0(@types/react@19.3.0)(react@19.3.1)
+      react-qr-code:
+        specifier: ^2.2.0
+        version: 2.2.0(react@19.3.1)
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@autonova/config':
         specifier: workspace:*
@@ -207,7 +231,7 @@ importers:
         version: 19.3.0(@types/react@19.3.0)
       jsdom:
         specifier: ^29.1.1
-        version: 29.1.1(@noble/hashes@1.8.0)
+        version: 29.1.1(@noble/hashes@2.4.0)
       tailwindcss:
         specifier: ^4.3.5
         version: 4.3.5
@@ -216,7 +240,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@types/node@24.19.2)(jsdom@29.1.1(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+        version: 4.1.12(@types/node@24.19.2)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
   packages/config: {}
 
@@ -237,7 +261,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@types/node@24.19.2)(jsdom@29.1.1(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+        version: 4.1.12(@types/node@24.19.2)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
   packages/enums:
     devDependencies:
@@ -252,7 +276,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@types/node@24.19.2)(jsdom@29.1.1(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+        version: 4.1.12(@types/node@24.19.2)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
   packages/validation:
     dependencies:
@@ -271,7 +295,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
-        version: 4.1.12(@types/node@24.19.2)(jsdom@29.1.1(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+        version: 4.1.12(@types/node@24.19.2)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
 packages:
 
@@ -567,6 +591,81 @@ packages:
       '@noble/hashes': ^1.8.0 || ^2.0.0
     peerDependenciesMeta:
       '@noble/hashes':
+        optional: true
+
+  '@hookform/resolvers@7.0.3':
+    resolution: {integrity: sha512-beGY1JY6K5cyWlswD4BVf7UTb5MxSjKkjljrRyLPT3KIQzsTU0jOibBKqtdcKqIZYQUUyURed7roLWZtSdAtiQ==}
+    peerDependencies:
+      '@standard-schema/spec': ^1.0.0
+      '@vinejs/vine': ^2.0.0 || ^3.0.0 || ^4.0.0
+      ajv: ^8.12.0
+      ajv-errors: ^3.0.0
+      ajv-formats: ^2.1.1
+      arktype: ^2.0.0
+      ata-validator: ^1.23.0
+      class-transformer: '>=0.4.0'
+      class-validator: '>=0.12.0'
+      computed-types: ^1.0.0
+      effect: ^4.0.0
+      fluentvalidation-ts: ^3.0.0
+      fp-ts: ^2.7.0
+      io-ts: ^2.0.0
+      joi: ^17.0.0 || ^18.0.0
+      nope-validator: '>=0.12.0'
+      react-hook-form: ^7.55.0
+      superstruct: '>=0.12.0'
+      typanion: ^3.3.2
+      typebox: ^1.0.0
+      valibot: '>=0.31.0 || ^1.0.0-beta.4 || ^1.0.0-rc'
+      vest: '>=6.0.0'
+      yup: ^1.0.0
+      zod: ^3.25.0 || ^4.0.0
+    peerDependenciesMeta:
+      '@standard-schema/spec':
+        optional: true
+      '@vinejs/vine':
+        optional: true
+      ajv:
+        optional: true
+      ajv-errors:
+        optional: true
+      ajv-formats:
+        optional: true
+      arktype:
+        optional: true
+      ata-validator:
+        optional: true
+      class-transformer:
+        optional: true
+      class-validator:
+        optional: true
+      computed-types:
+        optional: true
+      effect:
+        optional: true
+      fluentvalidation-ts:
+        optional: true
+      fp-ts:
+        optional: true
+      io-ts:
+        optional: true
+      joi:
+        optional: true
+      nope-validator:
+        optional: true
+      superstruct:
+        optional: true
+      typanion:
+        optional: true
+      typebox:
+        optional: true
+      valibot:
+        optional: true
+      vest:
+        optional: true
+      yup:
+        optional: true
+      zod:
         optional: true
 
   '@img/colour@1.1.0':
@@ -1167,6 +1266,10 @@ packages:
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
     engines: {node: ^14.21.3 || >=16}
 
+  '@noble/hashes@2.4.0':
+    resolution: {integrity: sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==}
+    engines: {node: '>= 20.19.0'}
+
   '@node-rs/argon2-android-arm-eabi@2.2.2':
     resolution: {integrity: sha512-c11BOrPLBWNC1cDyzGB+Bil+flmxfZbB2hv8EhcobmAsFKMyqkHPNhUY4qhcjv1U+4+Vmw4G8H+l224iO2g/Dw==}
     engines: {node: '>= 10'}
@@ -1252,6 +1355,24 @@ packages:
   '@node-rs/argon2@2.2.2':
     resolution: {integrity: sha512-NtdlPPWtR5U4BxX5EGJYza+UklNaoWORmkaKCMqf/nyKeXWKVwNt8KfQoRpNT7OB1DcEwmePafO4wZyW+sbfCQ==}
     engines: {node: '>= 10'}
+
+  '@otplib/core@13.6.0':
+    resolution: {integrity: sha512-TL6/FKKzR55Vr7zo3YGFtPMCSV3SpYPtuvE3T1XcwjFczD9pHU4dYYQBl0AcNvGcqAt4/fPqhZEFfB2OBcnlPA==}
+
+  '@otplib/hotp@13.6.0':
+    resolution: {integrity: sha512-oPpaQBkAYjBxAs+FWdGNumsEwWJhIZVcsv0vEi+w4OzzLQ6UDZ2qXZNSeF9NljTj6/8d4e1Z4o6RgJa3aIxAOA==}
+
+  '@otplib/plugin-base32-scure@13.6.0':
+    resolution: {integrity: sha512-s6uMbj4MBebvAPnBns1y2RhQ765/U04qHlZmFLV02dlD1S06pU46g/7tHX0vkCx5Pnty723loXto/PM5gFEEdg==}
+
+  '@otplib/plugin-crypto-noble@13.6.0':
+    resolution: {integrity: sha512-m/8mOhtIhsr4zLtb9MlLI6+w7ZNiKSFnT8Dv7eHR9TCyf2Sxva5e+MbV0wONmF7ZLuvo9F3DtzfPjc748PhJcw==}
+
+  '@otplib/totp@13.6.0':
+    resolution: {integrity: sha512-bMlq0MaUaQE3lOSH352Mrzcwpau5pMf7pMLROS+llk2evpC/sE7SHl9ajBl+PiPnGGb6LGYEjDvKqX8caXkGdw==}
+
+  '@otplib/uri@13.6.0':
+    resolution: {integrity: sha512-CiLFMONTpCi3ara6yQQX3nlpYhafCALKJweA7+7Z+aDkRrW3QmD5a/9thKmQ0cGp2W70AMG/6BSTy82h74LHRw==}
 
   '@oxc-project/types@0.156.0':
     resolution: {integrity: sha512-1Duyg48TdJNdyhEB8Xn1L36bT9Pv6GUtlKjHxOys8xkaF/rQq3XJE+bAurSK/AgIz5mGFsb77cn9Pb20+WCScw==}
@@ -1653,12 +1774,18 @@ packages:
   '@scarf/scarf@1.4.0':
     resolution: {integrity: sha512-xxeapPiUXdZAE3che6f3xogoJPeZgig6omHEy1rIY5WVsB3H2BHNnZH+gHG6x91SCWyQCzWGsuL2Hh3ClO5/qQ==}
 
+  '@scure/base@2.4.0':
+    resolution: {integrity: sha512-thZ1TuJwFwBblOhgsjDKvvGirBxNp+wSvY/DR6tJBJOTDhdAAcHJ8Vbr2eFnqaxeca4+t0i9KBf+uHYGWwZORg==}
+
   '@sindresorhus/is@4.6.0':
     resolution: {integrity: sha512-t09vSN3MdfsyCHoFcTRCH/iUtG7OJ0CsjzB8cjAmKc/va/kIgeDI/TxsigdncE/4be734m0cvIYwNaV4i2XqAw==}
     engines: {node: '>=10'}
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@standard-schema/utils@0.3.0':
+    resolution: {integrity: sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g==}
 
   '@swc/helpers@0.5.23':
     resolution: {integrity: sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==}
@@ -1753,6 +1880,18 @@ packages:
 
   '@tailwindcss/postcss@4.3.5':
     resolution: {integrity: sha512-FAV37Tlx9wBiT/hkfgVD0Q6CWsP2oUX3lf28nrfjW8+ksILjnpuFulUqWDfNR4/ZiEHHDRBX8DUTzD1Rys687A==}
+
+  '@tanstack/query-core@5.106.1':
+    resolution: {integrity: sha512-erYv/UACddcdgjOL2ixmFdK6tO/AVBeUcTCOtX2N51yZpDQ2U7KJ+xgB/bCNfsF3uoCDTqGHEEbDiFsIO9YUmQ==}
+
+  '@tanstack/react-query@5.106.1':
+    resolution: {integrity: sha512-ORDvJG/DSfmlFL9lQ8GDkE0VjtQbLeRDY7BL8xjKkQFGLfjFGfNWNuteWgPqA2gPJgLLuWfQ7IX0FlsHCJriyg==}
+    peerDependencies:
+      '@types/react': ^18 || ^19
+      react: ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   '@testing-library/dom@10.4.2':
     resolution: {integrity: sha512-yzr2S9HyAIdhz2/6qHgbs665Q7PKVcDF05vsOlHPxG1mo36gKVesdYVeDLnXgfjJ03CrKRk08knc6+E/9m8v2Q==}
@@ -1873,6 +2012,9 @@ packages:
 
   '@types/node@24.19.2':
     resolution: {integrity: sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==}
+
+  '@types/nodemailer@8.0.2':
+    resolution: {integrity: sha512-c7M5ox8p0nEOfbJ2E9Qcmt8/QCu/VzsiAhzBiZbvky2PhKZDHpKB3sQHBM5MEZNkCfBOaS6S9//AGPRTNB7IaA==}
 
   '@types/pg@8.23.1':
     resolution: {integrity: sha512-fKVHpikPdg4GKks3JuLEhvwSyvwzF23hnabPy6DD8ljVbC7+6J5dQzdv4arV6jqq57djnMgs1HKBxX4P8aBI3A==}
@@ -2756,6 +2898,10 @@ packages:
   long@5.3.2:
     resolution: {integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==}
 
+  loose-envify@1.4.0:
+    resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
+    hasBin: true
+
   lru-cache@11.5.3:
     resolution: {integrity: sha512-U4N8FgzmWxc8k1VH8Kr6lQg18U7Fjvby6wXHVRX/ZZ7IwWbRMgrRbP0Wrb5q5NVinryp4SQampHKdvtecItxUg==}
     engines: {node: 20 || >=22}
@@ -2898,6 +3044,10 @@ packages:
     resolution: {integrity: sha512-Z3lTE9pLaJF47NyMhd4ww1yFTAP8YhYI8SleJiHzM46Fgpm5cnNzSl9XfzFNqbaz+VlJrIj3fXQ4DeN1Rjm6cw==}
     engines: {node: '>=18'}
 
+  nodemailer@10.3.1:
+    resolution: {integrity: sha512-uF0AFsJC07Y1vdW7p580DKAnh7rAO+4UPSSB3mDCPNDufoiaOebV6JmrzpxB14OjEEEiBsNdYoM2Y+fN8M7BBA==}
+    engines: {node: '>=20.0.0'}
+
   object-assign@4.1.1:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
     engines: {node: '>=0.10.0'}
@@ -2931,6 +3081,9 @@ packages:
   ora@9.4.1:
     resolution: {integrity: sha512-6VlU9MLXbjVQD04AZCMX28hVtA5bUoadvUqO76MUCVA0ilwJbMiHsITRPfyVm6p/BC0Av/BXMujx39WCe1LEqw==}
     engines: {node: '>=20'}
+
+  otplib@13.6.0:
+    resolution: {integrity: sha512-PCx6+14PYndCRk0G3JuJHmlExzENs43gafqMUVmSFmzMbEweVhBiYcBCL8B32ZMEDPZA4OsMxFEeAob1H+YFZg==}
 
   oxlint-tsgolint@7.0.2006:
     resolution: {integrity: sha512-5B3UtH71kycPHUC1kFEIffivEAs49SUmkJuHZOZnTY0NPj4legp0bcsCQucuLVNCoJzDucS68P2C4WIhP+LypQ==}
@@ -3091,6 +3244,9 @@ packages:
   process-warning@5.1.1:
     resolution: {integrity: sha512-oCkNVj4OKnKEcocVBcDfiIugN1/cE6rgfT3nCtzeqZPA8+rIxMaQ0xXzIkGP8Gj2qUaP1UR7uhJ1VD8lUCpzCg==}
 
+  prop-types@15.8.1:
+    resolution: {integrity: sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==}
+
   proper-lockfile@4.1.2:
     resolution: {integrity: sha512-TjNPblN4BwAWMXU8s9AEz4JmQxnD1NNL7bNOY/AKUzyamc379FWASUhc/K1pL2noVb+XmZKLL68cjzLsiOAMaA==}
 
@@ -3107,6 +3263,9 @@ packages:
 
   pure-rand@6.1.0:
     resolution: {integrity: sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA==}
+
+  qrcode-generator@2.0.4:
+    resolution: {integrity: sha512-mZSiP6RnbHl4xL2Ap5HfkjLnmxfKcPWpWe/c+5XxCuetEenqmNFf1FH/ftXPCtFG5/TDobjsjz6sSNL0Sr8Z9g==}
 
   qs@6.17.1:
     resolution: {integrity: sha512-jd3COkaKVgGUW+ZHyEHCG9bH7RoaaiWuMgzsIBjUMVjLAaWGWpoUAVwljVvBHxRu/2qEHnadLGZrkutYUBPQJA==}
@@ -3131,8 +3290,26 @@ packages:
     peerDependencies:
       react: ^19.3.1
 
+  react-hook-form@7.91.0:
+    resolution: {integrity: sha512-5BEBUnCBwa28AFXYTYmOaB/+CSpJ/+CWVASHEvIGUzFdHyUiPHeRhG7r5hOZ8nZi0yP7pbHdFNXO/p31EKTJFQ==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      '@types/react': '*'
+      react: ^16.8.0 || ^17 || ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+
+  react-is@16.13.1:
+    resolution: {integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==}
+
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
+
+  react-qr-code@2.2.0:
+    resolution: {integrity: sha512-e5nS0UUN22K3Nf8KBRUzemfdJ6OmnN5w+kbnj1lvJaol9RyVRFeGl05bCkxSN2ZegbLxjjYjX1+mmAoX9+fAhw==}
+    peerDependencies:
+      react: '*'
 
   react@19.3.1:
     resolution: {integrity: sha512-QNhWdt7nrgVWWQG58QuGsAR3jv3Hbe4mb4vz7w2csnHavciZJgda1CPNaldF6eVxv90ud3jUXpKlHL69gO38yw==}
@@ -3831,9 +4008,19 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@exodus/bytes@1.16.0(@noble/hashes@1.8.0)':
+  '@exodus/bytes@1.16.0(@noble/hashes@2.4.0)':
     optionalDependencies:
-      '@noble/hashes': 1.8.0
+      '@noble/hashes': 2.4.0
+
+  '@hookform/resolvers@7.0.3(@standard-schema/spec@1.1.0)(ajv@8.20.0)(react-hook-form@7.91.0(@types/react@19.3.0)(react@19.3.1))(valibot@1.4.2(typescript@6.0.3))(zod@4.6.7)':
+    dependencies:
+      '@standard-schema/utils': 0.3.0
+      react-hook-form: 7.91.0(@types/react@19.3.0)(react@19.3.1)
+    optionalDependencies:
+      '@standard-schema/spec': 1.1.0
+      ajv: 8.20.0
+      valibot: 1.4.2(typescript@6.0.3)
+      zod: 4.6.7
 
   '@img/colour@1.1.0':
     optional: true
@@ -4274,6 +4461,8 @@ snapshots:
 
   '@noble/hashes@1.8.0': {}
 
+  '@noble/hashes@2.4.0': {}
+
   '@node-rs/argon2-android-arm-eabi@2.2.2':
     optional: true
 
@@ -4328,6 +4517,33 @@ snapshots:
       '@node-rs/argon2-win32-arm64-msvc': 2.2.2
       '@node-rs/argon2-win32-ia32-msvc': 2.2.2
       '@node-rs/argon2-win32-x64-msvc': 2.2.2
+
+  '@otplib/core@13.6.0': {}
+
+  '@otplib/hotp@13.6.0':
+    dependencies:
+      '@otplib/core': 13.6.0
+      '@otplib/uri': 13.6.0
+
+  '@otplib/plugin-base32-scure@13.6.0':
+    dependencies:
+      '@otplib/core': 13.6.0
+      '@scure/base': 2.4.0
+
+  '@otplib/plugin-crypto-noble@13.6.0':
+    dependencies:
+      '@noble/hashes': 2.4.0
+      '@otplib/core': 13.6.0
+
+  '@otplib/totp@13.6.0':
+    dependencies:
+      '@otplib/core': 13.6.0
+      '@otplib/hotp': 13.6.0
+      '@otplib/uri': 13.6.0
+
+  '@otplib/uri@13.6.0':
+    dependencies:
+      '@otplib/core': 13.6.0
 
   '@oxc-project/types@0.156.0': {}
 
@@ -4623,9 +4839,13 @@ snapshots:
 
   '@scarf/scarf@1.4.0': {}
 
+  '@scure/base@2.4.0': {}
+
   '@sindresorhus/is@4.6.0': {}
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@standard-schema/utils@0.3.0': {}
 
   '@swc/helpers@0.5.23':
     dependencies:
@@ -4699,6 +4919,15 @@ snapshots:
       '@tailwindcss/oxide': 4.3.5
       postcss: 8.5.32
       tailwindcss: 4.3.5
+
+  '@tanstack/query-core@5.106.1': {}
+
+  '@tanstack/react-query@5.106.1(@types/react@19.3.0)(react@19.3.1)':
+    dependencies:
+      '@tanstack/query-core': 5.106.1
+      react: 19.3.1
+    optionalDependencies:
+      '@types/react': 19.3.0
 
   '@testing-library/dom@10.4.2':
     dependencies:
@@ -4828,6 +5057,10 @@ snapshots:
   '@types/node@24.19.2':
     dependencies:
       undici-types: 7.24.6
+
+  '@types/nodemailer@8.0.2':
+    dependencies:
+      '@types/node': 24.19.2
 
   '@types/pg@8.23.1':
     dependencies:
@@ -5222,10 +5455,10 @@ snapshots:
     dependencies:
       d3-array: 3.2.4
 
-  data-urls@7.0.0(@noble/hashes@1.8.0):
+  data-urls@7.0.0(@noble/hashes@2.4.0):
     dependencies:
       whatwg-mimetype: 5.0.0
-      whatwg-url: 16.0.1(@noble/hashes@1.8.0)
+      whatwg-url: 16.0.1(@noble/hashes@2.4.0)
     transitivePeerDependencies:
       - '@noble/hashes'
 
@@ -5545,9 +5778,9 @@ snapshots:
 
   help-me@5.0.0: {}
 
-  html-encoding-sniffer@6.0.0(@noble/hashes@1.8.0):
+  html-encoding-sniffer@6.0.0(@noble/hashes@2.4.0):
     dependencies:
-      '@exodus/bytes': 1.16.0(@noble/hashes@1.8.0)
+      '@exodus/bytes': 1.16.0(@noble/hashes@2.4.0)
     transitivePeerDependencies:
       - '@noble/hashes'
 
@@ -5599,17 +5832,17 @@ snapshots:
     dependencies:
       argparse: 3.0.4
 
-  jsdom@29.1.1(@noble/hashes@1.8.0):
+  jsdom@29.1.1(@noble/hashes@2.4.0):
     dependencies:
       '@asamuzakjp/css-color': 5.1.11
       '@asamuzakjp/dom-selector': 7.1.1
       '@bramus/specificity': 2.4.3
       '@csstools/css-syntax-patches-for-csstree': 1.1.16(css-tree@3.2.1)
-      '@exodus/bytes': 1.16.0(@noble/hashes@1.8.0)
+      '@exodus/bytes': 1.16.0(@noble/hashes@2.4.0)
       css-tree: 3.2.1
-      data-urls: 7.0.0(@noble/hashes@1.8.0)
+      data-urls: 7.0.0(@noble/hashes@2.4.0)
       decimal.js: 10.6.0
-      html-encoding-sniffer: 6.0.0(@noble/hashes@1.8.0)
+      html-encoding-sniffer: 6.0.0(@noble/hashes@2.4.0)
       is-potential-custom-element-name: 1.0.1
       lru-cache: 11.5.3
       parse5: 8.1.0
@@ -5620,7 +5853,7 @@ snapshots:
       w3c-xmlserializer: 5.0.0
       webidl-conversions: 8.0.1
       whatwg-mimetype: 5.0.0
-      whatwg-url: 16.0.1(@noble/hashes@1.8.0)
+      whatwg-url: 16.0.1(@noble/hashes@2.4.0)
       xml-name-validator: 5.0.0
     transitivePeerDependencies:
       - '@noble/hashes'
@@ -5728,6 +5961,10 @@ snapshots:
       yoctocolors: 2.2.0
 
   long@5.3.2: {}
+
+  loose-envify@1.4.0:
+    dependencies:
+      js-tokens: 4.0.0
 
   lru-cache@11.5.3: {}
 
@@ -5851,6 +6088,8 @@ snapshots:
       emojilib: 2.4.0
       skin-tone: 2.0.0
 
+  nodemailer@10.3.1: {}
+
   object-assign@4.1.1: {}
 
   object-inspect@1.13.4: {}
@@ -5883,6 +6122,15 @@ snapshots:
       log-symbols: 7.0.1
       stdin-discarder: 0.3.2
       string-width: 8.3.0
+
+  otplib@13.6.0:
+    dependencies:
+      '@otplib/core': 13.6.0
+      '@otplib/hotp': 13.6.0
+      '@otplib/plugin-base32-scure': 13.6.0
+      '@otplib/plugin-crypto-noble': 13.6.0
+      '@otplib/totp': 13.6.0
+      '@otplib/uri': 13.6.0
 
   oxlint-tsgolint@7.0.2006:
     optionalDependencies:
@@ -6074,6 +6322,12 @@ snapshots:
 
   process-warning@5.1.1: {}
 
+  prop-types@15.8.1:
+    dependencies:
+      loose-envify: 1.4.0
+      object-assign: 4.1.1
+      react-is: 16.13.1
+
   proper-lockfile@4.1.2:
     dependencies:
       graceful-fs: 4.2.11
@@ -6093,6 +6347,8 @@ snapshots:
   punycode@2.3.1: {}
 
   pure-rand@6.1.0: {}
+
+  qrcode-generator@2.0.4: {}
 
   qs@6.17.1:
     dependencies:
@@ -6120,7 +6376,21 @@ snapshots:
       react: 19.3.1
       scheduler: 0.28.0
 
+  react-hook-form@7.91.0(@types/react@19.3.0)(react@19.3.1):
+    dependencies:
+      react: 19.3.1
+    optionalDependencies:
+      '@types/react': 19.3.0
+
+  react-is@16.13.1: {}
+
   react-is@17.0.2: {}
+
+  react-qr-code@2.2.0(react@19.3.1):
+    dependencies:
+      prop-types: 15.8.1
+      qrcode-generator: 2.0.4
+      react: 19.3.1
 
   react@19.3.1: {}
 
@@ -6504,7 +6774,7 @@ snapshots:
       jiti: 2.7.0
       tsx: 4.23.15
 
-  vitest@4.1.12(@types/node@24.19.2)(jsdom@29.1.1(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)):
+  vitest@4.1.12(@types/node@24.19.2)(jsdom@29.1.1(@noble/hashes@2.4.0))(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)):
     dependencies:
       '@vitest/expect': 4.1.12
       '@vitest/mocker': 4.1.12(vite@8.3.6(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
@@ -6528,7 +6798,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 24.19.2
-      jsdom: 29.1.1(@noble/hashes@1.8.0)
+      jsdom: 29.1.1(@noble/hashes@2.4.0)
     transitivePeerDependencies:
       - msw
 
@@ -6540,9 +6810,9 @@ snapshots:
 
   whatwg-mimetype@5.0.0: {}
 
-  whatwg-url@16.0.1(@noble/hashes@1.8.0):
+  whatwg-url@16.0.1(@noble/hashes@2.4.0):
     dependencies:
-      '@exodus/bytes': 1.16.0(@noble/hashes@1.8.0)
+      '@exodus/bytes': 1.16.0(@noble/hashes@2.4.0)
       tr46: 6.0.0
       webidl-conversions: 8.0.1
     transitivePeerDependencies:

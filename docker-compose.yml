@@ -29,18 +29,32 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     environment:
       NODE_ENV: production
       API_PORT: 4000
       API_LOG_LEVEL: info
       DATABASE_URL: postgresql://autonova_app:${APP_DB_PASSWORD:?set in .env}@postgres:5432/${POSTGRES_DB}?schema=public
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:4000,http://localhost:4001}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      SMTP_URL: ${SMTP_URL:-smtp://mailpit:1025}
+      MAIL_FROM: "${MAIL_FROM:-Autonova CRM <no-reply@autonova.local>}"
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set in .env}
+      MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?set in .env}
       # This Compose file is for local development and stakeholder review. Production deployments
       # should use their own setting and keep Swagger disabled unless it is intentionally public.
       SWAGGER_ENABLED: 'true'
     ports:
       - '127.0.0.1:${API_PORT:-4000}:4000'
+
+  mailpit:
+    profiles: ['app']
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:1025:1025'
+      - '127.0.0.1:8025:8025'
 
   web:
     profiles: ['app']
