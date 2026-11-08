@@ -25,6 +25,7 @@ export default defineConfig({
     fileParallelism: false,
     env: {
       API_LOG_LEVEL: 'silent',
+      FILE_STORAGE_DIR: './.e2e-storage',
       NODE_ENV: 'test',
       JWT_ACCESS_SECRET: 'e2e-only-secret-0123456789abcdef0123456789abcdef',
       MFA_ENCRYPTION_KEY: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',

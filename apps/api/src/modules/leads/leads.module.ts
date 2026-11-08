@@ -20,6 +20,6 @@ import { LeadsController } from './presentation/leads.controller.js';
     LeadRevisitProcessor,
     LeadReminderProcessor,
   ],
-  exports: [LeadRevisitProcessor, LeadReminderProcessor],
+  exports: [LeadRevisitProcessor, LeadReminderProcessor, LeadsRepository],
 })
 export class LeadsModule {}

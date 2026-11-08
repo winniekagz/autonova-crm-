@@ -20,6 +20,8 @@ const CODE_BY_STATUS: Record<number, string> = {
   [HttpStatus.CONFLICT]: 'CONFLICT',
   [HttpStatus.UNPROCESSABLE_ENTITY]: 'UNPROCESSABLE',
   [HttpStatus.TOO_MANY_REQUESTS]: 'RATE_LIMITED',
+  // Raised by the upload size limit before a handler runs, so no handler can attach a specific code.
+  [HttpStatus.PAYLOAD_TOO_LARGE]: 'ATTACHMENT_TOO_LARGE',
 };
 
 interface ExceptionPayload {

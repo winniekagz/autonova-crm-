@@ -24,6 +24,19 @@ export const envSchema = z.object({
   APP_BASE_URL: z.url().default('http://localhost:3000'),
   SMTP_URL: z.url().optional(),
   MAIL_FROM: z.string().min(3).default('Autonova CRM <no-reply@localhost>'),
+  // Private directory for uploaded files. Must be outside any web-served path; in Docker it is a volume.
+  FILE_STORAGE_DIR: z.string().min(1).default('./storage'),
+  // Attachment limits (docs/flows/sales-activities.md). The shared package's defaults match these; the web
+  // app only uses them for early, friendly checks, so change them together.
+  ATTACHMENT_PHOTO_MAX_MB: z.coerce.number().positive().max(100).default(10),
+  ATTACHMENT_DOCUMENT_MAX_MB: z.coerce.number().positive().max(100).default(25),
+  ATTACHMENT_VOICE_NOTE_MAX_MB: z.coerce.number().positive().max(100).default(20),
+  // Total of all active attachments on one report.
+  ACTIVITY_ATTACHMENT_TOTAL_MAX_MB: z.coerce.number().positive().max(500).default(50),
+  // Retention periods, in months from when the item was recorded. Nothing is deleted automatically: the
+  // review command lists what is past these dates and a person approves each purge.
+  RETENTION_GPS_MONTHS: z.coerce.number().int().min(1).max(120).default(12),
+  RETENTION_VOICE_NOTE_MONTHS: z.coerce.number().int().min(1).max(120).default(12),
   JWT_ACCESS_SECRET: z.string().min(32, 'must be at least 32 characters (openssl rand -base64 48)'),
   MFA_ENCRYPTION_KEY: z
     .string()

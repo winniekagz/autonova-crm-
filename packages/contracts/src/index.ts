@@ -1,4 +1,6 @@
 import type {
+  ActivityType,
+  AttachmentCategory,
   CompanyIndustry,
   LeadDisqualificationReason,
   LeadReminderReason,
@@ -373,4 +375,126 @@ export interface CompanyLeadDto {
   estimatedValue: string | null;
   currency: 'KES' | 'USD';
   nextActionAt: string;
+}
+
+export type AttendeeKind = 'CONTACT' | 'EXTERNAL';
+
+/** Either an existing contact of the lead's company, or an outside person with a name and organisation. */
+export interface ActivityAttendeeDto {
+  id: string;
+  kind: AttendeeKind;
+  contactId: string | null;
+  /** The contact's name, or the name typed for an outside person. */
+  name: string;
+  organisation: string | null;
+  jobTitle: string | null;
+  /** For an outside person later linked to a contact: the name as first recorded. Null otherwise. */
+  recordedAs: string | null;
+  linkedAt: string | null;
+}
+
+export type ActivityAttendeeInput = { contactId: string } | { name: string; organisation?: string };
+
+export interface ActivityAttachmentDto {
+  id: string;
+  activityId: string;
+  category: AttachmentCategory;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedByName: string | null;
+  /** Voice notes only: the uploader confirmed the participants were told they were being recorded. */
+  recordingNoticeGiven: boolean | null;
+  createdAt: string;
+}
+
+/** A legal hold or approved retention exception: retention never touches the report while it is set. */
+export interface ActivityHoldDto {
+  reference: string;
+  reason: string;
+  placedAt: string;
+  placedByName: string | null;
+}
+
+export interface ActivityDto {
+  id: string;
+  leadId: string;
+  type: ActivityType;
+  /** When the interaction happened (an instant); not when it was recorded. */
+  occurredAt: string;
+  location: string | null;
+  /** Only for site visits, and only when the user chose to check in. */
+  gps: { latitude: number; longitude: number } | null;
+  discussion: string;
+  painPoints: string | null;
+  currentTools: string | null;
+  nextSteps: string | null;
+  attendees: ActivityAttendeeDto[];
+  attachmentCount: number;
+  /** Total size of the active attachments, so the screen can show how much of the allowance is used. */
+  attachmentBytes: number;
+  archived: boolean;
+  /** Why a Director archived it; null while it is active. */
+  archivedReason: string | null;
+  /** Present while a legal hold protects the report from retention. */
+  hold: ActivityHoldDto | null;
+  /** True when retention cleared a check-in that used to be here. */
+  gpsCleared: boolean;
+  /** Who recorded it: the recorder (and Directors) can edit it; only Directors archive it. */
+  createdByUserId: string;
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActivityInput {
+  type: ActivityType;
+  occurredAt: string;
+  location?: string;
+  gps?: { latitude: number; longitude: number } | null;
+  discussion: string;
+  painPoints?: string;
+  currentTools?: string;
+  nextSteps?: string;
+  attendees?: ActivityAttendeeInput[];
+}
+
+/** What a retention review found, without changing anything. */
+export interface RetentionCandidateDto {
+  kind: 'GPS' | 'VOICE_NOTE';
+  activityId: string;
+  leadId: string;
+  attachmentId: string | null;
+  recordedAt: string;
+  ageMonths: number;
+  /** A held report is listed but cannot be purged. */
+  held: boolean;
+  holdReference: string | null;
+}
+
+export interface RetentionReviewDto {
+  asOf: string;
+  gpsMonths: number;
+  voiceNoteMonths: number;
+  candidates: RetentionCandidateDto[];
+}
+
+export interface RetentionApprovalRequest {
+  /** What the approval covers, so a person approves a reviewed list and never "everything". */
+  items: { kind: 'GPS' | 'VOICE_NOTE'; activityId: string; attachmentId?: string }[];
+  /** The policy decision or ticket this purge follows. */
+  reference: string;
+  reason: string;
+}
+
+export interface RetentionOutcomeDto {
+  purged: number;
+  skippedHeld: number;
+  skippedNotDue: number;
+  failed: number;
+}
+
+export interface PlaceHoldRequest {
+  reference: string;
+  reason: string;
 }

@@ -26,6 +26,12 @@ export const ROLE_PERMISSIONS: Record<SystemRoleKey, readonly PermissionKey[]> =
     PermissionKey.CompaniesCreate,
     PermissionKey.CompaniesUpdate,
     PermissionKey.CompaniesArchive,
+    PermissionKey.ActivitiesList,
+    PermissionKey.ActivitiesRead,
+    PermissionKey.ActivitiesCreate,
+    PermissionKey.ActivitiesUpdate,
+    PermissionKey.ActivitiesArchive,
+    PermissionKey.ActivitiesRetention,
   ],
   // PRD §2.2–2.3 and §4.1 explicitly grant BD users own leads and own pipeline.
   [SystemRoleKey.BusinessDevelopment]: [
@@ -38,6 +44,12 @@ export const ROLE_PERMISSIONS: Record<SystemRoleKey, readonly PermissionKey[]> =
     PermissionKey.CompaniesRead,
     PermissionKey.CompaniesCreate,
     PermissionKey.CompaniesUpdate,
+    // PRD §2.2/§2.3: BD creates and edits visit reports on their own leads. Archiving is a Director power
+    // (decision 2026-11-08): the PRD gives "delete records" to Directors only.
+    PermissionKey.ActivitiesList,
+    PermissionKey.ActivitiesRead,
+    PermissionKey.ActivitiesCreate,
+    PermissionKey.ActivitiesUpdate,
   ],
   [SystemRoleKey.TechnicalLead]: [],
   [SystemRoleKey.Finance]: [],
@@ -62,4 +74,15 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   [PermissionKey.CompaniesUpdate]:
     'Edit a company and its contacts in the caller’s permitted scope',
   [PermissionKey.CompaniesArchive]: 'Archive a company or contact',
+  [PermissionKey.ActivitiesList]: 'List the visit and call reports of a lead in the caller’s scope',
+  [PermissionKey.ActivitiesRead]:
+    'View a report and download its attachments in the caller’s scope',
+  [PermissionKey.ActivitiesCreate]:
+    'Record a report and upload attachments on a lead in the caller’s scope',
+  [PermissionKey.ActivitiesUpdate]:
+    'Edit a report the caller created (Directors: any) and add attachments',
+  [PermissionKey.ActivitiesArchive]:
+    'Archive or restore a report, and remove an attachment, giving a reason (Director only)',
+  [PermissionKey.ActivitiesRetention]:
+    'Place or lift a legal hold on a report, and review or approve retention purges (Director only)',
 };

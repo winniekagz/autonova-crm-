@@ -19,7 +19,7 @@ describe('ROLE_PERMISSIONS', () => {
     }
   });
 
-  it('grants Business Development own leads and company create/edit, but not archiving', () => {
+  it('grants Business Development own leads, company create/edit (not archive) and visit reports', () => {
     expect(ROLE_PERMISSIONS[SystemRoleKey.BusinessDevelopment]).toEqual([
       PermissionKey.LeadsList,
       PermissionKey.LeadsRead,
@@ -29,6 +29,10 @@ describe('ROLE_PERMISSIONS', () => {
       PermissionKey.CompaniesRead,
       PermissionKey.CompaniesCreate,
       PermissionKey.CompaniesUpdate,
+      PermissionKey.ActivitiesList,
+      PermissionKey.ActivitiesRead,
+      PermissionKey.ActivitiesCreate,
+      PermissionKey.ActivitiesUpdate,
     ]);
     expect(ROLE_PERMISSIONS[SystemRoleKey.Director]).toContain(PermissionKey.CompaniesArchive);
     expect(ROLE_PERMISSIONS[SystemRoleKey.TechnicalLead]).toEqual([]);

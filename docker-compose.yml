@@ -45,6 +45,9 @@ services:
       # This Compose file is for local development and stakeholder review. Production deployments
       # should use their own setting and keep Swagger disabled unless it is intentionally public.
       SWAGGER_ENABLED: 'true'
+      FILE_STORAGE_DIR: /var/lib/autonova/files
+    volumes:
+      - autonova_files:/var/lib/autonova/files
     ports:
       - '127.0.0.1:${API_PORT:-4000}:4000'
 
@@ -70,3 +73,4 @@ services:
 
 volumes:
   autonova_pgdata:
+  autonova_files:

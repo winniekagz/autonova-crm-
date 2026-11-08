@@ -62,3 +62,85 @@ export const fullNameSchema = z
 
 /** Free-text justification attached to sensitive administrative actions. */
 export const reasonSchema = z.string().trim().min(1).max(500);
+
+export const ATTACHMENT_RULES = {
+  PHOTO: {
+    maxBytes: 10 * 1024 * 1024,
+    mimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+    extensions: ['jpg', 'jpeg', 'png', 'webp'],
+  },
+  VOICE_NOTE: {
+    maxBytes: 20 * 1024 * 1024,
+    mimeTypes: ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/webm'],
+    extensions: ['mp3', 'm4a', 'wav', 'webm'],
+  },
+  DOCUMENT: {
+    maxBytes: 25 * 1024 * 1024,
+    mimeTypes: [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/csv',
+    ],
+    extensions: ['pdf', 'docx', 'xlsx', 'csv'],
+  },
+} as const;
+
+export type AttachmentRuleCategory = keyof typeof ATTACHMENT_RULES;
+export const MAX_ATTACHMENTS_PER_ACTIVITY = 20;
+/** Default for the configurable total of all active attachments on one report. */
+export const DEFAULT_ACTIVITY_ATTACHMENT_TOTAL_MB = 50;
+export const LARGEST_ATTACHMENT_BYTES = Math.max(
+  ...Object.values(ATTACHMENT_RULES).map((rule) => rule.maxBytes),
+);
+
+/** The extension of a file name, lower-case and without the dot; '' when there is none. */
+export function fileExtension(name: string): string {
+  const base = name.split(/[\\/]/).pop() ?? '';
+  const dot = base.lastIndexOf('.');
+  return dot > 0 ? base.slice(dot + 1).toLowerCase() : '';
+}
+
+/** The category whose rules accept this extension, or null. Used to guess a category from a file name. */
+export function categoryForExtension(name: string): AttachmentRuleCategory | null {
+  const ext = fileExtension(name);
+  const found = (Object.keys(ATTACHMENT_RULES) as AttachmentRuleCategory[]).find((category) =>
+    (ATTACHMENT_RULES[category].extensions as readonly string[]).includes(ext),
+  );
+  return found ?? null;
+}
+
+export type AttachmentCheck =
+  { ok: true } | { ok: false; code: 'EMPTY' | 'TOO_LARGE' | 'TYPE_NOT_ALLOWED' };
+
+/** Early check from what the browser knows (size and name). The server re-checks the real content. */
+export function checkAttachmentCandidate(
+  category: AttachmentRuleCategory,
+  file: { name: string; size: number },
+): AttachmentCheck {
+  const rule = ATTACHMENT_RULES[category];
+  if (file.size <= 0) return { ok: false, code: 'EMPTY' };
+  if (file.size > rule.maxBytes) return { ok: false, code: 'TOO_LARGE' };
+  if (!(rule.extensions as readonly string[]).includes(fileExtension(file.name))) {
+    return { ok: false, code: 'TYPE_NOT_ALLOWED' };
+  }
+  return { ok: true };
+}
+
+/**
+ * A safe display name: no path parts, no control or bidirectional-override characters, bounded length,
+ * and never empty. It is only ever shown and offered as a download name; it never reaches the filesystem.
+ */
+export function sanitizeFileName(raw: string, fallback = 'file'): string {
+  const base = (raw.split(/[\\/]/).pop() ?? '')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069"<>:|?*]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^\.+/, '');
+  if (base === '') return fallback;
+  if (base.length <= 120) return base;
+  const ext = fileExtension(base);
+  const keep = ext ? 120 - ext.length - 1 : 120;
+  return ext ? `${base.slice(0, keep)}.${ext}` : base.slice(0, keep);
+}

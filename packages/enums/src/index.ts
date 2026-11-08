@@ -37,6 +37,12 @@ export const PermissionKey = {
   CompaniesCreate: 'companies:create',
   CompaniesUpdate: 'companies:update',
   CompaniesArchive: 'companies:archive',
+  ActivitiesList: 'activities:list',
+  ActivitiesRead: 'activities:read',
+  ActivitiesCreate: 'activities:create',
+  ActivitiesUpdate: 'activities:update',
+  ActivitiesArchive: 'activities:archive',
+  ActivitiesRetention: 'activities:retention',
 } as const;
 export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];
 
@@ -63,6 +69,30 @@ export const LeadSource = {
   ExistingClientUpsell: 'EXISTING_CLIENT_UPSELL',
 } as const;
 export type LeadSource = (typeof LeadSource)[keyof typeof LeadSource];
+
+/** PRD §4.3: the kinds of interaction a report records. */
+export const ActivityType = {
+  Visit: 'VISIT',
+  Call: 'CALL',
+  Demo: 'DEMO',
+  Meeting: 'MEETING',
+} as const;
+export type ActivityType = (typeof ActivityType)[keyof typeof ActivityType];
+
+/** What an attachment is, which decides its size limit and which types are accepted. */
+export const AttachmentCategory = {
+  Photo: 'PHOTO',
+  VoiceNote: 'VOICE_NOTE',
+  Document: 'DOCUMENT',
+} as const;
+export type AttachmentCategory = (typeof AttachmentCategory)[keyof typeof AttachmentCategory];
+
+/** Why a stored file or location was removed or kept: the retention process records one of these. */
+export const RetentionAction = {
+  Purged: 'PURGED',
+  GpsCleared: 'GPS_CLEARED',
+} as const;
+export type RetentionAction = (typeof RetentionAction)[keyof typeof RetentionAction];
 
 /** Industry classification for a company. Broad on purpose: it is for filtering, not for reporting detail. */
 export const CompanyIndustry = {

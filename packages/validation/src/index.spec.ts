@@ -84,3 +84,63 @@ describe('reasonSchema', () => {
     expect(reasonSchema.safeParse('x'.repeat(501)).success).toBe(false);
   });
 });
+
+describe('attachment rules', () => {
+  it('gives an early answer from size and name, and refuses dangerous extensions for every category', async () => {
+    const { checkAttachmentCandidate, categoryForExtension, fileExtension, ATTACHMENT_RULES } =
+      await import('./index.js');
+    expect(checkAttachmentCandidate('PHOTO', { name: 'a.JPG', size: 100 })).toEqual({ ok: true });
+    expect(checkAttachmentCandidate('PHOTO', { name: 'a.jpg', size: 0 })).toEqual({
+      ok: false,
+      code: 'EMPTY',
+    });
+    expect(
+      checkAttachmentCandidate('PHOTO', {
+        name: 'a.jpg',
+        size: ATTACHMENT_RULES.PHOTO.maxBytes + 1,
+      }),
+    ).toEqual({ ok: false, code: 'TOO_LARGE' });
+    for (const name of ['a.svg', 'a.html', 'a.exe', 'a.js', 'a.php', 'a.sh', 'a']) {
+      for (const category of ['PHOTO', 'VOICE_NOTE', 'DOCUMENT'] as const) {
+        expect(
+          checkAttachmentCandidate(category, { name, size: 10 }),
+          `${category} ${name}`,
+        ).toEqual({ ok: false, code: 'TYPE_NOT_ALLOWED' });
+      }
+    }
+    expect(categoryForExtension('memo.M4A')).toBe('VOICE_NOTE');
+    expect(categoryForExtension('prices.xlsx')).toBe('DOCUMENT');
+    expect(categoryForExtension('x.svg')).toBeNull();
+    expect(fileExtension('C:\\a\\b.tar.GZ')).toBe('gz');
+    expect(fileExtension('.bashrc')).toBe('');
+  });
+
+  it('uses the decided limits and accepted types, and no longer accepts HEIC or OGG', async () => {
+    const { ATTACHMENT_RULES, DEFAULT_ACTIVITY_ATTACHMENT_TOTAL_MB, categoryForExtension } =
+      await import('./index.js');
+    const mb = 1024 * 1024;
+    expect(ATTACHMENT_RULES.PHOTO.maxBytes).toBe(10 * mb);
+    expect(ATTACHMENT_RULES.DOCUMENT.maxBytes).toBe(25 * mb);
+    expect(ATTACHMENT_RULES.VOICE_NOTE.maxBytes).toBe(20 * mb);
+    expect(DEFAULT_ACTIVITY_ATTACHMENT_TOTAL_MB).toBe(50);
+    expect([...ATTACHMENT_RULES.PHOTO.extensions]).toEqual(['jpg', 'jpeg', 'png', 'webp']);
+    expect([...ATTACHMENT_RULES.VOICE_NOTE.extensions]).toEqual(['mp3', 'm4a', 'wav', 'webm']);
+    expect([...ATTACHMENT_RULES.DOCUMENT.extensions]).toEqual(['pdf', 'docx', 'xlsx', 'csv']);
+    expect(categoryForExtension('a.heic')).toBeNull();
+    expect(categoryForExtension('a.ogg')).toBeNull();
+    expect(categoryForExtension('a.wav')).toBe('VOICE_NOTE');
+  });
+
+  it('sanitises display names: no paths, control or direction-override characters, bounded, never empty', async () => {
+    const { sanitizeFileName } = await import('./index.js');
+    expect(sanitizeFileName('../../etc/passwd')).toBe('passwd');
+    expect(sanitizeFileName('C:\\Users\\x\\price list.pdf')).toBe('price list.pdf');
+    expect(sanitizeFileName('a\u0000b\u202ec.pdf')).toBe('abc.pdf');
+    expect(sanitizeFileName('  ..hidden  ')).toBe('hidden');
+    expect(sanitizeFileName('"><script>.pdf')).toBe('script.pdf');
+    expect(sanitizeFileName('///')).toBe('file');
+    const long = sanitizeFileName(`${'x'.repeat(300)}.pdf`);
+    expect(long.length).toBeLessThanOrEqual(120);
+    expect(long.endsWith('.pdf')).toBe(true);
+  });
+});

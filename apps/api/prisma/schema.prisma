@@ -48,6 +48,19 @@ enum CompanyIndustry {
   OTHER
 }
 
+enum ActivityType {
+  VISIT
+  CALL
+  DEMO
+  MEETING
+}
+
+enum AttachmentCategory {
+  PHOTO
+  VOICE_NOTE
+  DOCUMENT
+}
+
 enum ProductInterest {
   RETAIL_POS
   CAR_WASH_AUTOMATION
@@ -111,22 +124,30 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  roles             UserRole[]
-  invitations       UserInvitation[]
-  auditLogs         AuditLog[]
-  sessions          Session[]
-  mfa               UserMfa?
-  ownedLeads        Lead[]             @relation("LeadOwner")
-  createdLeads      Lead[]             @relation("LeadCreator")
-  leadTransitions   LeadStageHistory[] @relation("LeadTransitionActor")
-  lostLeads         Lead[]             @relation("LeadLostBy")
-  disqualifiedLeads Lead[]             @relation("LeadDisqualifiedBy")
-  leadReminders     LeadReminder[]     @relation("LeadReminderRecipient")
-  createdCompanies  Company[]          @relation("CompanyCreator")
-  updatedCompanies  Company[]          @relation("CompanyUpdater")
-  archivedCompanies Company[]          @relation("CompanyArchiver")
-  createdContacts   Contact[]          @relation("ContactCreator")
-  updatedContacts   Contact[]          @relation("ContactUpdater")
+  roles               UserRole[]
+  invitations         UserInvitation[]
+  auditLogs           AuditLog[]
+  sessions            Session[]
+  mfa                 UserMfa?
+  ownedLeads          Lead[]               @relation("LeadOwner")
+  createdLeads        Lead[]               @relation("LeadCreator")
+  leadTransitions     LeadStageHistory[]   @relation("LeadTransitionActor")
+  lostLeads           Lead[]               @relation("LeadLostBy")
+  disqualifiedLeads   Lead[]               @relation("LeadDisqualifiedBy")
+  leadReminders       LeadReminder[]       @relation("LeadReminderRecipient")
+  heldActivities      Activity[]           @relation("ActivityHoldPlacer")
+  linkedAttendees     ActivityAttendee[]   @relation("AttendeeLinker")
+  purgedAttachments   ActivityAttachment[] @relation("AttachmentPurger")
+  archivedAttachments ActivityAttachment[] @relation("AttachmentArchiver")
+  createdCompanies    Company[]            @relation("CompanyCreator")
+  updatedCompanies    Company[]            @relation("CompanyUpdater")
+  archivedCompanies   Company[]            @relation("CompanyArchiver")
+  createdContacts     Contact[]            @relation("ContactCreator")
+  createdActivities   Activity[]           @relation("ActivityCreator")
+  updatedActivities   Activity[]           @relation("ActivityUpdater")
+  archivedActivities  Activity[]           @relation("ActivityArchiver")
+  uploadedAttachments ActivityAttachment[] @relation("AttachmentUploader")
+  updatedContacts     Contact[]            @relation("ContactUpdater")
 
   @@map("users")
 }
@@ -193,6 +214,7 @@ model Lead {
   company        Company?           @relation(fields: [companyId], references: [id], onDelete: Restrict)
   primaryContact Contact?           @relation("LeadPrimaryContact", fields: [primaryContactId], references: [id], onDelete: Restrict)
   contacts       LeadContact[]
+  activities     Activity[]
 
   @@index([companyId, ownerUserId])
   @@index([primaryContactId])
@@ -256,11 +278,12 @@ model Contact {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  company    Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  createdBy  User          @relation("ContactCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  updatedBy  User          @relation("ContactUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
-  primaryFor Lead[]        @relation("LeadPrimaryContact")
-  leadLinks  LeadContact[]
+  company     Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdBy   User               @relation("ContactCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy   User               @relation("ContactUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  primaryFor  Lead[]             @relation("LeadPrimaryContact")
+  leadLinks   LeadContact[]
+  attendances ActivityAttendee[]
 
   @@index([companyId, archivedAt])
   @@map("contacts")
@@ -278,6 +301,106 @@ model LeadContact {
   @@id([leadId, contactId])
   @@index([contactId])
   @@map("lead_contacts")
+}
+
+/// One interaction with a prospect (PRD 4.3): a meeting, site visit, demo or call. It belongs to a lead
+/// only; the company and contacts come through the lead so nothing is stored twice. Archived, never
+/// deleted. `occurred_at` is when it happened, `created_at` when it was recorded.
+model Activity {
+  id                 String       @id @default(uuid(7)) @db.Uuid
+  leadId             String       @map("lead_id") @db.Uuid
+  type               ActivityType
+  occurredAt         DateTime     @map("occurred_at") @db.Timestamptz(3)
+  location           String?
+  latitude           Decimal?     @db.Decimal(9, 6)
+  longitude          Decimal?     @db.Decimal(9, 6)
+  discussion         String
+  painPoints         String?      @map("pain_points")
+  currentTools       String?      @map("current_tools")
+  nextSteps          String?      @map("next_steps")
+  /// When the check-in was captured: the start of its retention period. Null with no position.
+  gpsRecordedAt      DateTime?    @map("gps_recorded_at") @db.Timestamptz(3)
+  /// Set when retention cleared the position; the report itself is kept.
+  gpsClearedAt       DateTime?    @map("gps_cleared_at") @db.Timestamptz(3)
+  archivedAt         DateTime?    @map("archived_at") @db.Timestamptz(3)
+  archivedByUserId   String?      @map("archived_by_user_id") @db.Uuid
+  archivedReason     String?      @map("archived_reason")
+  /// A legal hold or approved retention exception: while set, retention never touches this report.
+  holdReference      String?      @map("hold_reference")
+  holdReason         String?      @map("hold_reason")
+  holdPlacedAt       DateTime?    @map("hold_placed_at") @db.Timestamptz(3)
+  holdPlacedByUserId String?      @map("hold_placed_by_user_id") @db.Uuid
+  createdByUserId    String       @map("created_by_user_id") @db.Uuid
+  updatedByUserId    String       @map("updated_by_user_id") @db.Uuid
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  holdPlacedBy User?                @relation("ActivityHoldPlacer", fields: [holdPlacedByUserId], references: [id], onDelete: Restrict)
+  lead         Lead                 @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  createdBy    User                 @relation("ActivityCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy    User                 @relation("ActivityUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  archivedBy   User?                @relation("ActivityArchiver", fields: [archivedByUserId], references: [id], onDelete: Restrict)
+  attendees    ActivityAttendee[]
+  attachments  ActivityAttachment[]
+
+  @@index([leadId, occurredAt(sort: Desc), id(sort: Desc)])
+  @@index([createdByUserId])
+  @@map("activities")
+}
+
+/// A person who took part: an existing contact of the lead's company, or an outside person.
+model ActivityAttendee {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  activityId     String    @map("activity_id") @db.Uuid
+  contactId      String?   @map("contact_id") @db.Uuid
+  externalName   String?   @map("external_name")
+  organisation   String?
+  /// Set when an outside attendee was later linked to a CRM contact; the name above stays as recorded.
+  linkedAt       DateTime? @map("linked_at") @db.Timestamptz(3)
+  linkedByUserId String?   @map("linked_by_user_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  contact  Contact? @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  linkedBy User?    @relation("AttendeeLinker", fields: [linkedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([activityId])
+  @@index([contactId])
+  @@map("activity_attendees")
+}
+
+/// Metadata only. The bytes live in private file storage under `storage_key`, a random server-made key
+/// that never contains the client's file name. Archived, never deleted; the blob is purged by the
+/// retention procedure (docs/06).
+model ActivityAttachment {
+  id                   String             @id @default(uuid(7)) @db.Uuid
+  activityId           String             @map("activity_id") @db.Uuid
+  category             AttachmentCategory
+  fileName             String             @map("file_name")
+  storageKey           String             @unique @map("storage_key")
+  mimeType             String             @map("mime_type")
+  sizeBytes            Int                @map("size_bytes")
+  sha256               String
+  uploadedByUserId     String             @map("uploaded_by_user_id") @db.Uuid
+  /// Voice notes only: whether the uploader confirmed the participants were told they were recorded.
+  recordingNoticeGiven Boolean?           @map("recording_notice_given")
+  archivedAt           DateTime?          @map("archived_at") @db.Timestamptz(3)
+  archivedByUserId     String?            @map("archived_by_user_id") @db.Uuid
+  archivedReason       String?            @map("archived_reason")
+  /// Set when the reviewed retention process removed the stored file; the row stays as the record.
+  purgedAt             DateTime?          @map("purged_at") @db.Timestamptz(3)
+  purgedByUserId       String?            @map("purged_by_user_id") @db.Uuid
+  purgeReason          String?            @map("purge_reason")
+  purgeReference       String?            @map("purge_reference")
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Restrict)
+  uploadedBy User     @relation("AttachmentUploader", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  purgedBy   User?    @relation("AttachmentPurger", fields: [purgedByUserId], references: [id], onDelete: Restrict)
+  archivedBy User?    @relation("AttachmentArchiver", fields: [archivedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([activityId, archivedAt])
+  @@map("activity_attachments")
 }
 
 /// One delivery record per lead follow-up instant. (lead_id, due_at) is unique, so a follow-up is

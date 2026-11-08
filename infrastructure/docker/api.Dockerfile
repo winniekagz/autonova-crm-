@@ -24,6 +24,8 @@ FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build --chown=node:node /out ./
+# Private upload directory; created owned by `node` so a named volume mounted here inherits that owner.
+RUN mkdir -p /var/lib/autonova/files && chown node:node /var/lib/autonova/files && chmod 700 /var/lib/autonova/files
 USER node
 EXPOSE 4000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=5 \
