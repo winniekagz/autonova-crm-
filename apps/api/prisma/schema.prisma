@@ -1,8 +1,4 @@
-// Autonova CRM — foundation schema (Phase 0).
-//
-// Only identity, access control and audit tables exist so far. Business tables
-// (companies, leads, ToR, invoices, ...) arrive with the flow that needs them.
-// The full target model is documented in docs/04-database-design.md.
+// Autonova CRM — identity/access foundation and first lead lifecycle slice.
 
 generator client {
   provider = "prisma-client"
@@ -26,6 +22,42 @@ enum AuditCategory {
   SECURITY
 }
 
+enum LeadSource {
+  REFERRAL
+  INSTAGRAM
+  WEBSITE
+  WALK_IN
+  EVENT
+  COLD_OUTREACH
+  EXISTING_CLIENT_UPSELL
+}
+
+enum LeadStage {
+  NEW_LEAD
+  VISITS_AND_CALLS
+  QUALIFIED
+  SCOPE_ALIGNMENT
+  TOR_QUOTE_SENT
+  DISQUALIFIED
+  WON
+  LOST
+}
+
+enum LeadDisqualificationReason {
+  NO_BUDGET
+  NO_DECISION_MAKER
+  NEED_DOES_NOT_FIT
+  CHOSE_COMPETITOR
+  UNRESPONSIVE
+  TIMING_REVISIT_LATER
+  OTHER
+}
+
+enum LeadTransitionSource {
+  MANUAL
+  SCHEDULED_REVISIT
+}
+
 /// A person who can sign in. Users are never hard-deleted: they are referenced by
 /// audit events and (later) by leads, ToRs and payments. Use status = DISABLED instead.
 model User {
@@ -38,11 +70,97 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  roles     UserRole[]
-  auditLogs AuditLog[]
-  sessions  Session[]
+  roles             UserRole[]
+  invitations       UserInvitation[]
+  auditLogs         AuditLog[]
+  sessions          Session[]
+  mfa               UserMfa?
+  ownedLeads        Lead[]             @relation("LeadOwner")
+  createdLeads      Lead[]             @relation("LeadCreator")
+  leadTransitions   LeadStageHistory[] @relation("LeadTransitionActor")
+  lostLeads         Lead[]             @relation("LeadLostBy")
+  disqualifiedLeads Lead[]             @relation("LeadDisqualifiedBy")
 
   @@map("users")
+}
+
+/// Hashed, single-use onboarding links. Plain invitation tokens are emailed once and never stored.
+model UserInvitation {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
+  acceptedAt DateTime? @map("accepted_at") @db.Timestamptz(3)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, expiresAt])
+  @@map("user_invitations")
+}
+
+/// Lead/opportunity aggregate. Stage transitions and outcome history are separate records.
+model Lead {
+  id                     String                      @id @default(uuid(7)) @db.Uuid
+  name                   String
+  companyName            String?                     @map("company_name")
+  phone                  String?
+  email                  String?
+  source                 LeadSource
+  referrerName           String?                     @map("referrer_name")
+  productInterest        String?                     @map("product_interest")
+  notes                  String?
+  estimatedValue         Decimal?                    @map("estimated_value") @db.Decimal(14, 2)
+  currency               String                      @default("KES")
+  stage                  LeadStage                   @default(NEW_LEAD)
+  lostReason             String?                     @map("lost_reason")
+  lostAt                 DateTime?                   @map("lost_at") @db.Timestamptz(3)
+  lostByUserId           String?                     @map("lost_by_user_id") @db.Uuid
+  disqualificationReason LeadDisqualificationReason? @map("disqualification_reason")
+  disqualifiedAt         DateTime?                   @map("disqualified_at") @db.Timestamptz(3)
+  disqualifiedByUserId   String?                     @map("disqualified_by_user_id") @db.Uuid
+  revisitOn              DateTime?                   @map("revisit_on") @db.Date
+  ownerUserId            String                      @map("owner_user_id") @db.Uuid
+  createdByUserId        String                      @map("created_by_user_id") @db.Uuid
+  nextAction             String                      @map("next_action")
+  nextActionAt           DateTime                    @map("next_action_at") @db.Timestamptz(3)
+  probability            Int?
+  createdAt              DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  owner          User               @relation("LeadOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  creator        User               @relation("LeadCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  lostBy         User?              @relation("LeadLostBy", fields: [lostByUserId], references: [id], onDelete: Restrict)
+  disqualifiedBy User?              @relation("LeadDisqualifiedBy", fields: [disqualifiedByUserId], references: [id], onDelete: Restrict)
+  stageHistory   LeadStageHistory[]
+
+  @@index([ownerUserId, stage, updatedAt(sort: Desc)])
+  @@index([nextActionAt])
+  @@index([createdAt(sort: Desc)])
+  @@map("leads")
+}
+
+/// Immutable domain history. The runtime DB role receives INSERT/SELECT only.
+model LeadStageHistory {
+  id                     String                      @id @default(uuid(7)) @db.Uuid
+  leadId                 String                      @map("lead_id") @db.Uuid
+  fromStage              LeadStage?                  @map("from_stage")
+  toStage                LeadStage                   @map("to_stage")
+  actorUserId            String?                     @map("actor_user_id") @db.Uuid
+  occurredAt             DateTime                    @default(now()) @map("occurred_at") @db.Timestamptz(3)
+  reason                 String?
+  disqualificationReason LeadDisqualificationReason? @map("disqualification_reason")
+  revisitOn              DateTime?                   @map("revisit_on") @db.Date
+  source                 LeadTransitionSource        @default(MANUAL)
+
+  lead  Lead  @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  actor User? @relation("LeadTransitionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([leadId, occurredAt(sort: Desc)])
+  @@index([toStage, disqualificationReason, occurredAt(sort: Desc)])
+  @@index([toStage, revisitOn])
+  @@map("lead_stage_history")
 }
 
 /// One sign-in on one device. Access tokens carry its id (`sid`); the API checks on EVERY request
@@ -67,6 +185,38 @@ model Session {
   /// "Active sessions of a user" (session list, revoke-all on disable/password change).
   @@index([userId, revokedAt])
   @@map("sessions")
+}
+
+/// Encrypted TOTP enrollment and verification state. Plaintext secrets are only handled by AuthMfaService.
+model UserMfa {
+  userId           String    @id @map("user_id") @db.Uuid
+  secretCiphertext String?   @map("secret_ciphertext")
+  secretIv         String?   @map("secret_iv")
+  secretTag        String?   @map("secret_tag")
+  enrolledAt       DateTime? @map("enrolled_at") @db.Timestamptz(3)
+  lastAcceptedStep BigInt?   @map("last_accepted_step")
+  failedAttempts   Int       @default(0) @map("failed_attempts")
+  lockedUntil      DateTime? @map("locked_until") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  recoveryCodes MfaRecoveryCode[]
+
+  @@map("user_mfa")
+}
+
+/// High-entropy one-time recovery code digests; plaintext is returned only once at enrollment.
+model MfaRecoveryCode {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  codeHash  String    @unique @map("code_hash")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+
+  mfa UserMfa @relation(fields: [userId], references: [userId], onDelete: Restrict)
+
+  @@index([userId, usedAt])
+  @@map("mfa_recovery_codes")
 }
 
 /// One refresh token issued for a session. A session IS the token family: every rotation of a
