@@ -98,3 +98,82 @@ export async function apiRequest<T>(
 export async function apiRequestVoid(path: string, options: ApiRequestOptions = {}): Promise<void> {
   await send(path, options);
 }
+
+export interface UploadOptions {
+  token: string;
+  /** Called with 0..1 as bytes leave the browser. */
+  onProgress?: (fraction: number) => void;
+  signal?: AbortSignal;
+}
+
+/**
+ * Uploads a multipart form and reports progress. `fetch` cannot report upload progress, so this one
+ * call uses XMLHttpRequest. Failures become the same ApiError as every other request, so retry and
+ * message handling stay uniform.
+ */
+export function apiUpload<T>(
+  path: string,
+  form: FormData,
+  parse: (json: unknown) => T,
+  options: UploadOptions,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open('POST', `${API_BASE_URL}/api/v1${path}`);
+    request.setRequestHeader('authorization', `Bearer ${options.token}`);
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable && options.onProgress)
+        options.onProgress(event.loaded / event.total);
+    };
+    request.onerror = () =>
+      reject(
+        new ApiError(
+          0,
+          'NETWORK_ERROR',
+          'Could not reach the server. Check your connection and try again.',
+        ),
+      );
+    request.onabort = () =>
+      reject(new ApiError(0, 'UPLOAD_CANCELLED', 'The upload was cancelled.'));
+    request.onload = () => {
+      let body: unknown;
+      try {
+        body = JSON.parse(request.responseText);
+      } catch {
+        body = undefined;
+      }
+      if (request.status >= 200 && request.status < 300) {
+        try {
+          resolve(parse(body));
+        } catch (error) {
+          reject(error);
+        }
+        return;
+      }
+      if (isErrorBody(body))
+        reject(new ApiError(request.status, body.code, body.message, body.details ?? []));
+      else reject(new ApiError(request.status, 'HTTP_ERROR', `Request failed (${request.status})`));
+    };
+    options.signal?.addEventListener('abort', () => request.abort(), { once: true });
+    request.send(form);
+  });
+}
+
+/** Downloads a file with the bearer token and returns it as a Blob (a plain link cannot send the token). */
+export async function apiDownload(
+  path: string,
+  token: string,
+): Promise<{ blob: Blob; fileName: string | null }> {
+  const response = await send(path, { token });
+  const disposition = response.headers.get('content-disposition') ?? '';
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  let fileName: string | null = null;
+  if (encoded) {
+    try {
+      fileName = decodeURIComponent(encoded);
+    } catch {
+      fileName = null;
+    }
+  }
+  return { blob: await response.blob(), fileName };
+}

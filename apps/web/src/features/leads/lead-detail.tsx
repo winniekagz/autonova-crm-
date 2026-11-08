@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Alert } from '@/components/ui/alert';
+import { ActivityTimeline } from '@/features/activities/activity-timeline';
 import { formatNairobiDateTime } from '@/lib/nairobi-time';
 import { labelFor, productLabel } from './lead-format';
 import { LeadLifecycle } from './lead-lifecycle';
@@ -63,6 +64,7 @@ export function LeadDetail({ id }: { id: string }) {
           <dd className="mt-1 whitespace-pre-wrap text-sm">{lead.notes || '—'}</dd>
         </div>
       </dl>
+      <ActivityTimeline lead={lead} />
       <LeadRelationships lead={lead} />
       <LeadReminders lead={lead} />
       <LeadLifecycle lead={lead} />
