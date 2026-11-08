@@ -1,34 +1,45 @@
 # Implementation progress
 
-_Last updated: 2026-11-07 · Current phase: **Phase 1 in progress** — login, permission model and the first user-administration slice are done; refresh tokens, session management and persistent web login are done; next: TOTP MFA_
+_Last updated: 2026-11-08 · Current product state: Director MFA, invitations, lead CRUD, and constrained lead lifecycle transitions are implemented; qualification scoring and downstream client lifecycle remain incomplete._
+
+## Current delivery snapshot
+
+- **Director MFA:** TOTP enrollment/provisioning URI, confirmation before activation, per-session verification, replay-step rejection, encrypted secret storage, one-time recovery codes and persistent lockout are implemented. Recovery clears enrollment and restricts all sessions. The MFA reset-by-another-Director endpoint and key rotation procedure are not implemented.
+- **Leads:** persisted CRUD and responsive screens are implemented. BD access is limited to owned leads; Directors may access all leads. New leads start in `NEW_LEAD`. The current lifecycle supports forward transitions, qualified-stage notes, disqualification reasons, Lost reasons, paginated transition history, and durable revisit dates processed in Nairobi time. Generic PATCH cannot change stage. The one-shot revisit CLI needs a recurring deployment scheduler; this repository does not configure one. BANT scoring/pass thresholds, Won conversion, backward transitions, reopening Lost, and owner reassignment remain unimplemented or pending decisions.
+- **Invitations:** user creation sends a single-use 48-hour setup link. Public acceptance sets the user's first password and activates the account; administrators can resend from user detail. Local Compose uses Mailpit; real delivery requires configured SMTP.
+- **Permission decision used:** PRD §2.2/§2.3 and §4.1 explicitly state BD users create/edit own leads and see their own pipeline. Director lead access follows the PRD’s “Yes” permissions. Technical Lead lead access remains “Confirm”; Finance has no lead access. No grants were added for those roles.
+- **Still absent:** normalized company/contact records, activities, formal qualification/BANT scoring, signed-ToR workflow and Won conversion, quotations, billing, support, integrations and production hosting.
+- **Verification:** latest verification outcomes are recorded in the sprint delivery summary after execution. E2E setup recreates only the isolated `autonova_test` database; never point it at development data.
+
+**Current sprint verification:** On 2026-11-08, API unit tests passed (133 tests), web unit tests passed (309 tests), the API E2E suite passed (192 tests across 18 files), lint passed, root typecheck passed, Prisma schema validation passed, and the API production build passed. E2E setup explicitly targets `autonova_test`, recreates it, applies the full migration chain, and seeds through the migration-owner connection; Vitest workers use the test database URL. Earlier Docker and browser checks are historical and are not fresh verification for this lifecycle slice. Eight migrations are applied on local `autonova`; no remote deployment was available or verified. Local invitations are captured in Mailpit at `http://localhost:8025`; real email delivery requires SMTP configuration. The detailed checkpoints below describe earlier steps and are historical where they conflict with this current snapshot.
 
 ## Phase 1 — Authentication and access control 🟡
 
-| Step                                                                                                                                 | State | Evidence                                                                                                              |
-| ------------------------------------------------------------------------------------------------------------------------------------ | ----- | --------------------------------------------------------------------------------------------------------------------- |
-| 0. DB role split + `audit_logs.category` (migration `20261107025746_audit_category_and_app_role`)                                    | ✅    | e2e: app role denied UPDATE/DELETE/TRUNCATE/DDL/DISABLE TRIGGER/`_prisma_migrations`; owner still stopped by triggers |
-| 1. Audit service (business in-transaction, security standalone, allow-list snapshots, credential-key guard)                          | ✅    | 11 unit + 4 e2e (rollback in both directions)                                                                         |
-| 2. Password hasher (argon2id, configurable, rehash detection) + password policy + benchmark script                                   | ✅    | 5 + 6 unit tests; bench: 199 ms at the default cost on the dev machine                                                |
-| 3. First-Director bootstrap (CLI only)                                                                                               | ✅    | 5 e2e incl. race test (mutation-checked) + manual CLI run (invalid input → exit 2, success, repeat refused)           |
-| 4. Login + `/auth/me` + deny-by-default guard + per-request user/session checks                                                      | ✅    | see Step 4 gate below                                                                                                 |
-| 5. User administration                                                                                                               | ✅    | see Final gate below                                                                                                  |
-| 6. Refresh tokens, rotation + replay detection, session management, persistent web login (migration `20261107132520_refresh_tokens`) | ✅    | 51 new api e2e (incl. 12-way concurrent refresh against the real DB), 12 new api unit, 30 new web; details below      |
-| 7. Director TOTP MFA                                                                                                                 | ⏳    |                                                                                                                       |
-| 8. Permission guard, role/permission admin, permission seeding ("clear" rows)                                                        | ⏳    | S1 for the rest                                                                                                       |
-| 9. Invitations / password reset                                                                                                      | ⏳    | S3 email provider                                                                                                     |
-| 10. Backups + restore test                                                                                                           | ⏳    | S10                                                                                                                   |
+| Step                                                                                                                                 | State | Evidence                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ----- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 0. DB role split + `audit_logs.category` (migration `20261107025746_audit_category_and_app_role`)                                    | ✅    | e2e: app role denied UPDATE/DELETE/TRUNCATE/DDL/DISABLE TRIGGER/`_prisma_migrations`; owner still stopped by triggers                   |
+| 1. Audit service (business in-transaction, security standalone, allow-list snapshots, credential-key guard)                          | ✅    | 11 unit + 4 e2e (rollback in both directions)                                                                                           |
+| 2. Password hasher (argon2id, configurable, rehash detection) + password policy + benchmark script                                   | ✅    | 5 + 6 unit tests; bench: 199 ms at the default cost on the dev machine                                                                  |
+| 3. First-Director bootstrap (CLI only)                                                                                               | ✅    | 5 e2e incl. race test (mutation-checked) + manual CLI run (invalid input → exit 2, success, repeat refused)                             |
+| 4. Login + `/auth/me` + deny-by-default guard + per-request user/session checks                                                      | ✅    | see Step 4 gate below                                                                                                                   |
+| 5. User administration                                                                                                               | ✅    | see Final gate below                                                                                                                    |
+| 6. Refresh tokens, rotation + replay detection, session management, persistent web login (migration `20261107132520_refresh_tokens`) | ✅    | 51 new api e2e (incl. 12-way concurrent refresh against the real DB), 12 new api unit, 30 new web; details below                        |
+| 7. Director TOTP MFA                                                                                                                 | ✅    | Enrollment, confirmation, verification, replay tracking, recovery codes, encryption and lockout implemented; integration coverage below |
+| 8. Permission guard and user/role admin; initial CRM permission grants                                                               | ✅/🟡 | Existing guard/admin preserved; Director + BD lead grants implemented from explicit PRD scope; other role permissions remain S1         |
+| 9. Invitations / password reset                                                                                                      | ✅/⏳ | Invitation email and acceptance delivered; password reset and production SMTP provider choice remain                                    |
+| 10. Backups + restore test                                                                                                           | ⏳    | S10                                                                                                                                     |
 
 **Gate after step 6 (refresh tokens):** lint ✔ · typecheck ✔ · unit: packages 23, api 102, web 114 ✔ · api e2e 153 ✔ (the 102 earlier tests, incl. all Step 4/5 security tests, plus 51 new) · `pnpm build` ✔ · `migrate status` up to date, `migrate diff` drift exit 0 ✔ · api and web images rebuilt and checked against the running containers; browser check (login → reload keeps session → sessions page → revoke other → sign out → reload stays signed out) ✔. Prettier is clean for every file of this project; it still flags the vendored `.agents/` skill markdown, which is not project code.
 
-**Things to know (step 6)**
+**Things to know (step 6; historical checkpoint, superseded by current delivery snapshot)**
 
 - A page reload no longer signs the user out: the app restores the session from the HttpOnly refresh cookie. Server-rendered protected pages are only a neutral shell; the reason and the unresolved backend-for-frontend decision are in [06](../06-security-and-access-control.md) ("Web: persistent login and protected first renders").
 - Re-using a rotated refresh token ends that session, with no grace period. A browser without the Web Locks API that refreshes from two tabs at the same instant can therefore be signed out.
 - Sessions that existed before the migration have no refresh token and end with their access token (15 min).
-- Directors still cannot get past the MFA restriction (TOTP is the next step); refresh keeps them restricted and never sets `mfa_verified_at`.
+- At that checkpoint, Directors could not get past the MFA restriction; the current MFA implementation is documented above.
 - Open: cleanup job for expired sessions/tokens, Director revoking other users' sessions (`sessions:revoke`), a refresh rate limit keyed by more than IP.
 
-**Final gate (after user administration):** format ✔ · lint ✔ · typecheck ✔ · unit 148 (packages 23, api 70, web 55) ✔ · api e2e 102 ✔ (incl. the 52 Step 4 security regression tests, re-run separately) ✔ · `pnpm build` ✔ · `migrate status` up to date, drift exit 0 ✔. API docker image not rebuilt.
+**Final gate (after user administration; historical checkpoint):** format ✔ · lint ✔ · typecheck ✔ · unit 148 (packages 23, api 70, web 55) ✔ · api e2e 102 ✔ (incl. the 52 Step 4 security regression tests, re-run separately) ✔ · `pnpm build` ✔ · `migrate status` up to date, drift exit 0 ✔. API docker image not rebuilt.
 
 **Previous gate (after step 4):** format ✔ · lint ✔ · typecheck ✔ · unit 82 (3+2+13 packages, 53 api, 11 web) ✔ · api e2e 58 ✔ · `pnpm build` ✔ · migrate status up to date, no drift ✔. (API docker image last built after step 3; not rebuilt after step 4.)
 
@@ -141,17 +152,17 @@ Mapped to the phase they block; none blocks starting Phase 1 except the first.
 
 An external review of doc 06 was incorporated; the item-by-item disposition is in [06](../06-security-and-access-control.md#review-disposition-v01--v02). One point was declined in part: file-upload security was built into the design now but its **build phase stays roadmap Phase 3** (first upload endpoint), because the review read the PRD's "Phase 1" as roadmap Phase 1; likewise ToR signing security is built in roadmap Phase 5. Both carry a hard gate: no such endpoint ships without its controls. No code changed in this revision.
 
-## User administration slice — notes (2026-11-07)
+## User administration slice — notes (historical checkpoint, 2026-11-07)
 
 **Decisions made (also in `docs/flows/user-management.md`):** users are created `INVITED` only, the caller can neither choose status nor set a password; nobody may change their own roles or disable themselves; last-_active_-Director protection under an advisory lock shared with bootstrap; `INVITED → DISABLED` allowed, re-enable not built; removing a role revokes sessions, adding one does not; only `fullName` is editable via `PATCH`; no-op changes write no audit row.
 
 **Known limitations**
 
-- **Nobody invited can sign in yet.** There is no email provider (S3), no invitation acceptance and no password reset, so `INVITED` users stay invited. This is the main functional gap of the slice; the UI says so.
+- At this checkpoint, invited users could not sign in. The follow-on invitation implementation is summarized in the current delivery snapshot above; password reset remains unimplemented.
 - **A Director cannot use any of this in the real app yet:** their session stays restricted until the TOTP flow (step 6) exists. The tests mark sessions MFA-verified in the database; my browser check used a temporary database trigger for the same purpose, which I **removed** afterwards (verified: no trigger or function left; the test Director account is disabled).
 - A page reload still signs the user out (no refresh token yet).
 - Non-Directors cannot edit even their own name; there is no self-service profile.
-- No re-enable; no MFA reset; no "re-issue invitation".
+- No re-enable; no administrative MFA reset; invitations can now be resent while the account remains `INVITED`.
 - Web: the shell is a minimal header, not the full sidebar of `docs/webdesign.md` §4; no column sorting or visibility on the user table (search, status and role filters and server-side paging exist).
 - The dev database now contains test users (`sam@…` bootstrap Director, `uidir@…` disabled UI-test Director, `wanjiru.kamau@…` disabled) — dev data only.
 - Browser-tool quirks again: clicks were issued through the page; the `Escape`-to-close behaviour of the confirmation dialog could not be confirmed with synthetic key events (the dialog is a native modal `<dialog>`: focus trap, inert background and Cancel-first focus were confirmed; Escape is handled in code by the `cancel` event and is not covered by an automated test).

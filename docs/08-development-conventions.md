@@ -35,6 +35,8 @@
 - Next.js App Router, server components by default; client components only for interactivity.
 - Tailwind with the brand tokens in `globals.css` (navy/cyan). Mobile-first (lead capture and visit reports are phone use cases).
 - Every data view has loading, empty, error and success states.
+- Server state (anything the API owns) is read with TanStack Query: one `<feature>.queries.ts` per feature holds its query keys and hooks, always through `useAuthedRequest` so token renewal still applies. Reads retry once, and only for network failures and 5xx (`lib/query-client.ts`); writes never retry. The cache is emptied when the session ends. Search, filters and page live in the URL (`hooks/use-url-params.ts`), not in component state. Do not fetch inside `useEffect`.
+- Forms use React Hook Form with a Zod schema (`zodResolver`). The schema sits beside the form (`*-schema.ts`) and reuses the shared rules in `@autonova/validation`; it is the early, friendly check only, the API validates everything again. Field errors from the API are shown on the form's own fields through `lib/form-errors.ts`, which ignores any field name the form does not own. Typed values stay in the form after a failure; sign-in is the one exception, where the password is cleared. Use `Controller` only for controls that are not native inputs (role pickers), and `register` for the rest.
 - The web app calls the API only; it never imports Prisma or backend code. Types come from `@autonova/contracts`.
 
 ## Documentation

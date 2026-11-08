@@ -4,7 +4,7 @@ Sales and client engagement management for Autonova Systems Limited: lead → qu
 
 > **Core rule:** a lead becomes a client only after **both parties have signed the ToR**. Quotation acceptance or a stage change is never enough.
 
-**Status:** Phase 0 complete; Phase 1 (auth and access control) in progress — security foundations done (DB role split, audit service, password hashing, first-Director bootstrap). No login yet. See [progress](docs/implementation/progress.md).
+**Status:** Authentication, user administration, Director TOTP MFA, and the first persisted leads slice are implemented. Activities, qualification, ToR/signature, conversion, billing and service workflows remain in progress. See [implementation progress](docs/implementation/progress.md) and [requirements traceability](docs/audit/02-requirements-traceability.md).
 
 ## Stack
 
@@ -33,11 +33,13 @@ Node ≥ 20.19, pnpm 11 (`corepack enable`), Docker with Compose.
 
 ```bash
 cp .env.example .env          # local dev defaults; never commit .env
+# Generate a unique key and put it in MFA_ENCRYPTION_KEY in .env:
+openssl rand -base64 32
 pnpm install
 pnpm db:up                    # PostgreSQL 16 on 127.0.0.1:5433
 pnpm db:migrate               # apply migrations as the owner role (prisma migrate dev)
 pnpm db:provision-app-role    # let the least-privilege runtime role `autonova_app` sign in
-pnpm db:seed                  # seed the 4 system roles (idempotent)
+pnpm db:seed                  # seed the 4 system roles and explicit permissions (idempotent)
 
 # once, to create the first Director (no HTTP endpoint exists for this):
 BOOTSTRAP_DIRECTOR_EMAIL=you@example.com BOOTSTRAP_DIRECTOR_NAME="Your Name" \
@@ -59,6 +61,9 @@ Open Swagger UI at <http://localhost:4000/api/docs>, download the OpenAPI JSON f
 Compose stack enables Swagger for development and review. Configure the production API environment
 with `SWAGGER_ENABLED=false` unless publishing the API reference is intentional. For the current endpoint inventory,
 auth instructions, and stakeholder sharing guidance, see [API reference](docs/api-reference.md).
+Local invitation emails are captured at <http://localhost:8025> by Mailpit; the local stack does not
+send real external email. For real delivery, configure `SMTP_URL`, `MAIL_FROM`, and `APP_BASE_URL`
+for the approved provider and application origin.
 
 - Health: `GET /api/v1/health/live` (liveness), `GET /api/v1/health` (readiness incl. database)
 - Swagger UI: <http://localhost:4000/api/docs> · OpenAPI JSON: `/api/docs-json`
