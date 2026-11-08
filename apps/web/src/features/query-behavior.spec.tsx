@@ -36,6 +36,7 @@ const lead = (over: Partial<LeadDto> = {}): LeadDto => ({
   source: 'WEBSITE',
   referrerName: null,
   productInterest: null,
+  legacyProductInterest: null,
   notes: null,
   estimatedValue: null,
   currency: 'KES',

@@ -4,6 +4,7 @@ import { PermissionKey } from '@autonova/enums';
 import Link from 'next/link';
 import type { FormEvent } from 'react';
 import { useUrlParams } from '@/hooks/use-url-params';
+import { formatNairobiDate } from '@/lib/nairobi-time';
 import { pageParam, readPage, readSearch } from '@/lib/url-params';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -106,7 +107,7 @@ export function LeadsList() {
                   <td className="p-3">{lead.companyName || 'Individual'}</td>
                   <td className="p-3">{labelFor(lead.stage)}</td>
                   <td className="max-w-64 p-3">{lead.nextAction}</td>
-                  <td className="p-3">{new Date(lead.nextActionAt).toLocaleDateString('en-KE')}</td>
+                  <td className="p-3">{formatNairobiDate(lead.nextActionAt)}</td>
                 </tr>
               ))}
             </tbody>

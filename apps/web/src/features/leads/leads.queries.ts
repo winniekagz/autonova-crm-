@@ -1,6 +1,6 @@
 'use client';
 
-import type { LeadDto, LeadInput } from '@autonova/contracts';
+import type { LeadDto, LeadDuplicateCheckRequest, LeadSaveRequest } from '@autonova/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthedRequest } from '@/features/auth/use-authed-request';
 import * as leadsApi from './api';
@@ -12,6 +12,7 @@ export const leadsKeys = {
   list: (search: string, page: number) => ['leads', 'list', { search, page }] as const,
   detail: (id: string) => ['leads', 'detail', id] as const,
   history: (id: string) => ['leads', 'history', id] as const,
+  reminders: (id: string) => ['leads', 'reminders', id] as const,
 };
 
 export function useLeadsList(search: string, page: number, enabled: boolean) {
@@ -37,6 +38,24 @@ export function useLeadHistory(id: string, enabled: boolean) {
     queryKey: leadsKeys.history(id),
     queryFn: () => request((token) => leadsApi.getLeadHistory(token, id)),
     enabled,
+  });
+}
+
+export function useLeadReminders(id: string, enabled: boolean) {
+  const request = useAuthedRequest();
+  return useQuery({
+    queryKey: leadsKeys.reminders(id),
+    queryFn: () => request((token) => leadsApi.getLeadReminders(token, id)),
+    enabled,
+  });
+}
+
+/** Asks the server for possible duplicates; the form calls `mutate` when the user leaves a field. */
+export function useCheckDuplicates() {
+  const request = useAuthedRequest();
+  return useMutation({
+    mutationFn: (body: LeadDuplicateCheckRequest) =>
+      request((token) => leadsApi.checkDuplicates(token, body)),
   });
 }
 
@@ -76,7 +95,7 @@ export function useSaveLead(lead: LeadDto | undefined) {
   const request = useAuthedRequest();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: LeadInput) =>
+    mutationFn: (body: LeadSaveRequest) =>
       request((token) =>
         lead ? leadsApi.updateLead(token, lead.id, body) : leadsApi.createLead(token, body),
       ),
@@ -84,6 +103,7 @@ export function useSaveLead(lead: LeadDto | undefined) {
       // The server's answer is the freshest copy of this lead; every list may now be out of date.
       queryClient.setQueryData(leadsKeys.detail(saved.id), saved);
       void queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: leadsKeys.reminders(saved.id) });
     },
   });
 }

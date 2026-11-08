@@ -55,7 +55,7 @@ erDiagram
 
 > **Step 5 (user administration) required no schema change.** `permissions` and `role_permissions` are now populated by `pnpm db:seed` (7 grants, all Director). Locks: user changes that can alter _who is an active Director_ take one transaction-scoped advisory lock (`pg_advisory_xact_lock(7204001)`) shared by the bootstrap CLI, role changes and disabling.
 
-## Implemented tables (✅ migrations include identity/access/audit, sessions/refresh tokens, users/invitations, initial leads, and `20261108100000_lead_lifecycle`)
+## Implemented tables (✅ migrations include identity/access/audit, sessions/refresh tokens, users/invitations, initial leads, `20261108100000_lead_lifecycle`, and `20261108140000_lead_capture_completion`)
 
 | Table              | Purpose                                                                                                       | Key constraints                                                                                                                                                                                                                                        | Indexes (query pattern)                                                                                                                                                                                |
 | ------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -81,7 +81,7 @@ erDiagram
 
 | Concern (directive §5.2)                       | Decision                                                                                                                                                                                                                                                                                          |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Duplicate leads / companies                    | Never a hard unique on name. Store `phone_normalized` (E.164) and `name_normalized`; **detect and warn** via query + index, unless Q4 says block. Hard unique only on KRA PIN (partial unique, where not null).                                                                                   |
+| Duplicate leads / companies                    | Never a hard unique on name. Implemented on leads as indexed `phone_normalized` (digits, international form) and `company_name_normalized`; the API **detects and warns** (409 until acknowledged), unless Q4 says block. Hard unique only on KRA PIN (partial unique, where not null).           |
 | Multiple contacts per company                  | `contacts.company_id` FK; no contact data duplicated into leads; `lead_contacts` junction for contacts involved in a deal.                                                                                                                                                                        |
 | Multiple deals per company                     | `leads.company_id` FK (1 company : N leads). Company nullability depends on Q3.                                                                                                                                                                                                                   |
 | Pipeline state                                 | One `LeadStage` enum on leads plus separate `lost_reason`, `disqualification_reason`, and `revisit_on`; transitions are recorded in append-only `lead_stage_history` with actor, reason, source, and time. `DISQUALIFIED` is currently represented as a stage pending product confirmation of Q1. |
@@ -103,3 +103,9 @@ erDiagram
 - Destructive or enum-changing migrations use expand → backfill → contract across releases.
 - CI/e2e: the e2e suite creates a fresh database and applies all migrations from zero (verifies the chain), and `prisma migrate diff --exit-code` detects schema/migration drift.
 - Backups (PRD §8.4): daily, 30-day retention — operational task for Phase 10; RPO/RTO are open.
+
+### Lead capture completion (`20261108140000_lead_capture_completion`)
+
+- `leads.product_interest` is the `ProductInterest` enum; unmatched legacy text is preserved in `leads.legacy_product_interest`.
+- `leads.phone_normalized` / `leads.company_name_normalized` (CHECK-constrained, indexed) support duplicate warnings; rules in `domain/lead-duplicates.ts`, mirrored in the migration backfill.
+- `lead_reminders`: one delivery record per `(lead_id, due_at)` (UNIQUE); status/attempt/reason CHECKs keep SENT ⇔ `sent_at` and require a reason for FAILED/SKIPPED; the app role cannot DELETE or TRUNCATE it.

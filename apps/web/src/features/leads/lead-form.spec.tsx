@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetNavigation, router } from '@/test/navigation';
@@ -188,7 +188,7 @@ describe('LeadForm validation', () => {
     await user.click(screen.getByRole('button', { name: 'Create lead' }));
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]?.body).toMatchObject({
-      nextActionAt: new Date('2026-12-24T09:00:00').toISOString(),
+      nextActionAt: '2026-12-24T06:00:00.000Z',
     });
   });
 
@@ -241,5 +241,168 @@ describe('LeadForm validation', () => {
     release();
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/leads/l-once'));
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('LeadForm product interest', () => {
+  it('offers exactly the Autonova catalogue and sends the chosen key', async () => {
+    const user = userEvent.setup();
+    const { calls } = mockApi({ 'POST /leads': () => ({ body: makeLead({ id: 'l-new' }) }) });
+    renderAs(BD, <LeadForm />);
+    const select = screen.getByLabelText('Product or service interest');
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual([
+      'Not specified',
+      'Retail POS',
+      'Car Wash Automation',
+      'ERP',
+      'Visitor/Security System',
+      'Hiring Platform (TalentHub)',
+      'Custom Build',
+    ]);
+    await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
+    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.selectOptions(select, 'Car Wash Automation');
+    await user.click(screen.getByRole('button', { name: 'Create lead' }));
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({
+      productInterest: 'CAR_WASH_AUTOMATION',
+    });
+  });
+
+  it('sends null when no product is chosen', async () => {
+    const user = userEvent.setup();
+    const { calls } = mockApi({ 'POST /leads': () => ({ body: makeLead({ id: 'l-new' }) }) });
+    renderAs(BD, <LeadForm />);
+    await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
+    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.click(screen.getByRole('button', { name: 'Create lead' }));
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({ productInterest: null });
+  });
+
+  it('shows what was typed before the catalogue existed and asks for a catalogue product', () => {
+    renderAs(
+      BD,
+      <LeadForm lead={makeLead({ productInterest: null, legacyProductInterest: 'app' })} />,
+    );
+    expect(
+      screen.getByText(/Previously entered as .app.\. Choose the closest product\./),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Product or service interest')).toHaveValue('');
+  });
+});
+
+describe('LeadForm duplicate detection', () => {
+  const duplicate = {
+    candidates: [
+      {
+        id: 'l-7',
+        name: 'Achieng Otieno',
+        companyName: 'Otieno Logistics',
+        phone: '0712345678',
+        stage: 'NEW_LEAD',
+        ownerName: 'Sam',
+        matchedOn: ['PHONE'],
+        createdAt: '2026-11-01T08:00:00.000Z',
+      },
+    ],
+    hiddenMatchCount: 0,
+  };
+
+  it('checks when the phone field is left and shows the existing lead', async () => {
+    const user = userEvent.setup();
+    const { calls } = mockApi({ 'POST /leads/duplicate-check': () => ({ body: duplicate }) });
+    renderAs(BD, <LeadForm />);
+    await user.type(screen.getByLabelText('Phone'), '0712 345 678');
+    await user.tab();
+    expect(await screen.findByRole('link', { name: 'Achieng Otieno' })).toHaveAttribute(
+      'href',
+      '/leads/l-7',
+    );
+    expect(calls.find((c) => c.path === '/leads/duplicate-check')?.body).toEqual({
+      phone: '0712 345 678',
+    });
+  });
+
+  it('does not check an empty phone and company, nor an unchanged edit', async () => {
+    const user = userEvent.setup();
+    const { calls } = mockApi({});
+    renderAs(BD, <LeadForm lead={makeLead({ phone: '0712345678' })} />);
+    await user.click(screen.getByLabelText('Phone'));
+    await user.tab();
+    expect(calls).toHaveLength(0);
+  });
+
+  it('keeps the form and asks for confirmation when the server warns, then resends acknowledged', async () => {
+    const user = userEvent.setup();
+    let attempt = 0;
+    const { calls } = mockApi({
+      'POST /leads/duplicate-check': () => ({ body: duplicate }),
+      'POST /leads': () => {
+        attempt += 1;
+        return attempt === 1
+          ? apiError(409, 'LEAD_DUPLICATE_SUSPECTED')
+          : { body: makeLead({ id: 'l-new' }) };
+      },
+    });
+    renderAs(BD, <LeadForm />);
+    await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
+    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.type(screen.getByLabelText('Phone'), '0712345678');
+    // Submitting straight from the field, without leaving it first: the server is the safety net.
+    await user.click(screen.getByRole('button', { name: 'Create lead' }));
+    const confirm = await screen.findByRole('checkbox', { name: /reviewed this and want to save/ });
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Person name')).toHaveValue('Wanjiru');
+
+    await user.click(confirm);
+    await user.click(screen.getByRole('button', { name: 'Create lead' }));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/leads/l-new'));
+    const posts = calls.filter((c) => c.method === 'POST' && c.path === '/leads');
+    expect(posts[0]?.body).not.toHaveProperty('acknowledgeDuplicates');
+    expect(posts[1]?.body).toMatchObject({ acknowledgeDuplicates: true });
+  });
+
+  it('withdraws the confirmation when the phone or company changes', async () => {
+    const user = userEvent.setup();
+    mockApi({ 'POST /leads/duplicate-check': () => ({ body: duplicate }) });
+    renderAs(BD, <LeadForm />);
+    await user.type(screen.getByLabelText('Phone'), '0712345678');
+    await user.tab();
+    const confirm = await screen.findByRole('checkbox');
+    await user.click(confirm);
+    expect(confirm).toBeChecked();
+    await user.type(screen.getByLabelText('Phone'), '9');
+    expect(screen.getByRole('checkbox')).not.toBeChecked();
+  });
+
+  it('lets the user save when the duplicate check itself fails', async () => {
+    const user = userEvent.setup();
+    mockApi({ 'POST /leads/duplicate-check': () => apiError(500, 'INTERNAL_ERROR') });
+    renderAs(BD, <LeadForm />);
+    await user.type(screen.getByLabelText('Company (optional)'), 'Acme');
+    await user.tab();
+    expect(await screen.findByText(/could not check for duplicates/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create lead' })).toBeEnabled();
+  });
+});
+
+describe('LeadForm follow-up date', () => {
+  it('sends 09:00 Nairobi time for the chosen day, whatever the browser timezone', async () => {
+    const user = userEvent.setup();
+    const { calls } = mockApi({ 'POST /leads': () => ({ body: makeLead({ id: 'l-new' }) }) });
+    renderAs(BD, <LeadForm />);
+    await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
+    await user.type(screen.getByLabelText('Next action'), 'Call');
+    fireEvent.change(screen.getByLabelText('Follow-up date'), { target: { value: '2026-12-24' } });
+    await user.click(screen.getByRole('button', { name: 'Create lead' }));
+    await waitFor(() => expect(router.replace).toHaveBeenCalled());
+    expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({
+      nextActionAt: '2026-12-24T06:00:00.000Z',
+    });
   });
 });

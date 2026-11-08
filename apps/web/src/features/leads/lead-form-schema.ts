@@ -1,4 +1,4 @@
-import { Currency, LeadSource, enumValues } from '@autonova/enums';
+import { Currency, LeadSource, ProductInterest, enumValues } from '@autonova/enums';
 import { z } from 'zod';
 
 /**
@@ -37,7 +37,7 @@ export const leadFormSchema = z
       ),
     source: z.enum(enumValues(LeadSource)),
     referrerName: optionalText(200, 'The referrer'),
-    productInterest: optionalText(120, 'The interest'),
+    productInterest: z.enum(enumValues(ProductInterest)).nullable().optional(),
     notes: optionalText(5000, 'The notes'),
     estimatedValue: z
       .string()

@@ -122,7 +122,7 @@ With an account whose `/auth/me` response includes lead permissions, create a le
   "email": "contact@example.test",
   "source": "REFERRAL",
   "referrerName": "Jane Mwangi",
-  "productInterest": "Website",
+  "productInterest": "RETAIL_POS",
   "estimatedValue": "12500.50",
   "currency": "KES",
   "nextAction": "Schedule discovery call",
@@ -145,6 +145,14 @@ to `QUALIFIED`); disqualify with `POST /api/v1/leads/{id}/disqualification` (`re
 (`reason`); inspect history with `GET /api/v1/leads/{id}/history`. A one-shot revisit processor is
 available as `pnpm --filter @autonova/api leads:process-revisits`; deployment must schedule it
 recurringly. Revisit dates use the Africa/Nairobi calendar day.
+
+`productInterest` must be one of `RETAIL_POS`, `CAR_WASH_AUTOMATION`, `ERP`, `VISITOR_SECURITY_SYSTEM`,
+`HIRING_PLATFORM`, `CUSTOM_BUILD` (or `null`/omitted). Before saving, `POST /api/v1/leads/duplicate-check`
+(`phone`, `companyName`, optional `excludeLeadId`) lists possible duplicates the caller may read. A
+create or update that matches an existing lead's normalised phone or company returns
+`409 LEAD_DUPLICATE_SUSPECTED` until the request is resent with `"acknowledgeDuplicates": true`.
+`GET /api/v1/leads/{id}/reminders` returns the next-action reminder delivery records; the emails
+are sent by the scheduled `pnpm --filter @autonova/api leads:send-reminders` worker.
 
 ### 7. Exercise users, roles, sessions, and logout
 
@@ -197,7 +205,9 @@ the Swagger operation itself.
 | `GET`   | `/api/v1/roles`                       | `roles:list`          | Lists assignable system roles.                                              |
 | `GET`   | `/api/v1/leads`                       | `leads:list`          | Lists leads in the caller's permitted scope with pagination/search.         |
 | `POST`  | `/api/v1/leads`                       | `leads:create`        | Creates a caller-owned lead in `NEW_LEAD`.                                  |
+| `POST`  | `/api/v1/leads/duplicate-check`       | `leads:create`        | Lists readable possible duplicates by phone/company, plus a hidden count.   |
 | `GET`   | `/api/v1/leads/{id}`                  | `leads:read`          | Reads a lead within the caller's permitted scope.                           |
+| `GET`   | `/api/v1/leads/{id}/reminders`        | `leads:read`          | Returns paginated next-action reminder delivery records.                    |
 | `PATCH` | `/api/v1/leads/{id}`                  | `leads:update`        | Updates lead details and follow-up; stage/owner cannot be changed.          |
 | `GET`   | `/api/v1/leads/{id}/history`          | `leads:read`          | Returns paginated stage history, including scheduled revisit events.        |
 | `POST`  | `/api/v1/leads/{id}/transitions`      | `leads:update`        | Advances the lead through an allowed forward transition.                    |

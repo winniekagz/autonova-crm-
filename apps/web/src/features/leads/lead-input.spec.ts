@@ -11,6 +11,7 @@ const lead = (over: Partial<LeadDto> = {}): LeadDto => ({
   source: 'WEBSITE',
   referrerName: null,
   productInterest: null,
+  legacyProductInterest: null,
   notes: null,
   estimatedValue: null,
   currency: 'KES',
@@ -37,18 +38,27 @@ describe('blankInput', () => {
   });
   afterEach(() => vi.useRealTimers());
 
-  it('defaults to a website lead in KES with the follow-up due tomorrow', () => {
+  it('defaults to a website lead in KES with the follow-up tomorrow at 09:00 Nairobi time', () => {
     expect(blankInput()).toEqual({
       name: '',
       source: 'WEBSITE',
       currency: 'KES',
       nextAction: '',
-      nextActionAt: '2026-11-08T10:00:00.000Z',
+      nextActionAt: '2026-11-08T06:00:00.000Z',
     });
   });
 });
 
 describe('toInput', () => {
+  it('carries the catalogue product, or null so a legacy value must be replaced', () => {
+    expect(toInput(lead({ productInterest: 'CAR_WASH_AUTOMATION' })).productInterest).toBe(
+      'CAR_WASH_AUTOMATION',
+    );
+    expect(
+      toInput(lead({ productInterest: null, legacyProductInterest: 'app' })).productInterest,
+    ).toBeNull();
+  });
+
   it('omits optional fields that are empty so they are not sent as blanks', () => {
     expect(toInput(lead())).toEqual({
       name: 'Achieng',
@@ -56,6 +66,7 @@ describe('toInput', () => {
       currency: 'KES',
       nextAction: 'Call',
       nextActionAt: '2026-11-10T09:00:00.000Z',
+      productInterest: null,
     });
   });
 
@@ -83,7 +94,7 @@ describe('toLeadRequestBody', () => {
     phone: ' 0700 ',
     email: '  Wanjiru@Example.TEST ',
     referrerName: ' Brian ',
-    productInterest: ' Tracking ',
+    productInterest: 'ERP',
     notes: '  hello  ',
     estimatedValue: ' 500 ',
     probability: 25,
@@ -97,7 +108,6 @@ describe('toLeadRequestBody', () => {
       phone: '0700',
       email: 'wanjiru@example.test',
       referrerName: 'Brian',
-      productInterest: 'Tracking',
       notes: 'hello',
       estimatedValue: '500',
     });
@@ -117,9 +127,9 @@ describe('toLeadRequestBody', () => {
       phone: '',
       email: '',
       referrerName: '',
-      productInterest: '',
       notes: '',
     });
+    expect(body.productInterest).toBeNull();
     expect(body.estimatedValue).toBeUndefined();
   });
 

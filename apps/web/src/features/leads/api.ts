@@ -1,5 +1,21 @@
-import type { LeadDto, LeadInput, LeadStageHistoryDto, Paginated } from '@autonova/contracts';
-import { LeadDisqualificationReason, LeadSource, LeadStage, enumValues } from '@autonova/enums';
+import type {
+  LeadDto,
+  LeadDuplicateCheckRequest,
+  LeadDuplicateCheckResult,
+  LeadReminderDto,
+  LeadSaveRequest,
+  LeadStageHistoryDto,
+  Paginated,
+} from '@autonova/contracts';
+import {
+  LeadDisqualificationReason,
+  LeadReminderReason,
+  LeadReminderStatus,
+  LeadSource,
+  LeadStage,
+  ProductInterest,
+  enumValues,
+} from '@autonova/enums';
 import { apiRequest } from '@/lib/api-client';
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
@@ -32,7 +48,12 @@ function parseLead(value: unknown): LeadDto {
     !(value.phone === null || typeof value.phone === 'string') ||
     !(value.email === null || typeof value.email === 'string') ||
     !(value.referrerName === null || typeof value.referrerName === 'string') ||
-    !(value.productInterest === null || typeof value.productInterest === 'string') ||
+    !(
+      value.productInterest === null ||
+      (typeof value.productInterest === 'string' &&
+        enumValues(ProductInterest).includes(value.productInterest as ProductInterest))
+    ) ||
+    !(value.legacyProductInterest === null || typeof value.legacyProductInterest === 'string') ||
     !(value.notes === null || typeof value.notes === 'string') ||
     !(value.estimatedValue === null || typeof value.estimatedValue === 'string') ||
     !(value.probability === null || typeof value.probability === 'number') ||
@@ -127,9 +148,9 @@ export function listLeads(token: string, q: string, page = 1) {
 
 export const getLead = (token: string, id: string) =>
   apiRequest(`/leads/${encodeURIComponent(id)}`, parseLead, { token });
-export const createLead = (token: string, body: LeadInput) =>
+export const createLead = (token: string, body: LeadSaveRequest) =>
   apiRequest('/leads', parseLead, { method: 'POST', body, token });
-export const updateLead = (token: string, id: string, body: LeadInput) =>
+export const updateLead = (token: string, id: string, body: LeadSaveRequest) =>
   apiRequest(`/leads/${encodeURIComponent(id)}`, parseLead, { method: 'PATCH', body, token });
 
 export const getLeadHistory = (token: string, id: string, page = 1) =>
@@ -167,3 +188,84 @@ export const markLeadLost = (
   body: { fromStage: 'TOR_QUOTE_SENT'; reason: string },
 ) =>
   apiRequest(`/leads/${encodeURIComponent(id)}/lost`, parseLead, { method: 'POST', body, token });
+
+const isMatch = (value: unknown): value is 'PHONE' | 'COMPANY' =>
+  value === 'PHONE' || value === 'COMPANY';
+
+function parseDuplicates(value: unknown): LeadDuplicateCheckResult {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.candidates) ||
+    typeof value.hiddenMatchCount !== 'number'
+  ) {
+    throw new Error('Unexpected duplicate check response from the server');
+  }
+  const candidates = value.candidates.map((entry: unknown) => {
+    if (
+      !isRecord(entry) ||
+      typeof entry.id !== 'string' ||
+      typeof entry.name !== 'string' ||
+      typeof entry.ownerName !== 'string' ||
+      typeof entry.createdAt !== 'string' ||
+      typeof entry.stage !== 'string' ||
+      !enumValues(LeadStage).includes(entry.stage as LeadStage) ||
+      !(entry.companyName === null || typeof entry.companyName === 'string') ||
+      !(entry.phone === null || typeof entry.phone === 'string') ||
+      !Array.isArray(entry.matchedOn) ||
+      !entry.matchedOn.every(isMatch)
+    ) {
+      throw new Error('Unexpected duplicate check response from the server');
+    }
+    return entry as unknown as LeadDuplicateCheckResult['candidates'][number];
+  });
+  return { candidates, hiddenMatchCount: value.hiddenMatchCount };
+}
+
+export const checkDuplicates = (token: string, body: LeadDuplicateCheckRequest) =>
+  apiRequest('/leads/duplicate-check', parseDuplicates, { method: 'POST', body, token });
+
+function parseReminder(value: unknown): LeadReminderDto {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    typeof value.leadId !== 'string' ||
+    typeof value.dueAt !== 'string' ||
+    typeof value.status !== 'string' ||
+    !enumValues(LeadReminderStatus).includes(value.status as LeadReminderStatus) ||
+    typeof value.attempts !== 'number' ||
+    typeof value.recipientName !== 'string' ||
+    !(value.lastAttemptAt === null || typeof value.lastAttemptAt === 'string') ||
+    !(value.sentAt === null || typeof value.sentAt === 'string') ||
+    !(
+      value.reason === null ||
+      (typeof value.reason === 'string' &&
+        enumValues(LeadReminderReason).includes(value.reason as LeadReminderReason))
+    )
+  ) {
+    throw new Error('Unexpected reminder response from the server');
+  }
+  return value as unknown as LeadReminderDto;
+}
+
+function parseReminderPage(value: unknown): Paginated<LeadReminderDto> {
+  if (
+    !isRecord(value) ||
+    !Array.isArray(value.items) ||
+    typeof value.total !== 'number' ||
+    typeof value.page !== 'number' ||
+    typeof value.pageSize !== 'number'
+  ) {
+    throw new Error('Unexpected reminder response from the server');
+  }
+  return {
+    items: value.items.map(parseReminder),
+    total: value.total,
+    page: value.page,
+    pageSize: value.pageSize,
+  };
+}
+
+export const getLeadReminders = (token: string, id: string) =>
+  apiRequest(`/leads/${encodeURIComponent(id)}/reminders?page=1&pageSize=20`, parseReminderPage, {
+    token,
+  });

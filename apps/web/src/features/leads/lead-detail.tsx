@@ -2,8 +2,10 @@
 
 import Link from 'next/link';
 import { Alert } from '@/components/ui/alert';
-import { labelFor } from './lead-format';
+import { formatNairobiDateTime } from '@/lib/nairobi-time';
+import { labelFor, productLabel } from './lead-format';
 import { LeadLifecycle } from './lead-lifecycle';
+import { LeadReminders } from './lead-reminders';
 import { useLead } from './use-lead';
 
 export function LeadDetail({ id }: { id: string }) {
@@ -34,14 +36,21 @@ export function LeadDetail({ id }: { id: string }) {
           ['Phone', lead.phone],
           ['Source', labelFor(lead.source)],
           ['Referrer', lead.referrerName],
-          ['Interest', lead.productInterest],
+          [
+            'Interest',
+            lead.productInterest
+              ? productLabel(lead.productInterest)
+              : lead.legacyProductInterest
+                ? `${lead.legacyProductInterest} (needs a catalogue product)`
+                : null,
+          ],
           [
             'Estimated value',
             lead.estimatedValue ? `${lead.currency} ${lead.estimatedValue}` : null,
           ],
           ['Probability', lead.probability === null ? null : `${lead.probability}%`],
           ['Next action', lead.nextAction],
-          ['Follow-up', new Date(lead.nextActionAt).toLocaleString('en-KE')],
+          ['Follow-up (Nairobi time)', formatNairobiDateTime(lead.nextActionAt)],
         ].map(([label, value]) => (
           <div key={label}>
             <dt className="text-xs text-ink-soft">{label}</dt>
@@ -53,6 +62,7 @@ export function LeadDetail({ id }: { id: string }) {
           <dd className="mt-1 whitespace-pre-wrap text-sm">{lead.notes || '—'}</dd>
         </div>
       </dl>
+      <LeadReminders lead={lead} />
       <LeadLifecycle lead={lead} />
       <Link className="mt-4 inline-block text-sm text-primary underline" href="/leads">
         Back to leads

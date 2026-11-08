@@ -23,6 +23,7 @@ describe('LeadDetail', () => {
   it('shows a loading state, then the lead, with empty fields as a dash', async () => {
     mockApi({
       'GET /leads/l-1': () => ({ body: makeLead({ phone: null }) }),
+      'GET /leads/l-1/reminders': () => page([]),
       'GET /leads/l-1/history': () => page([]),
     });
     renderAs(BD, <LeadDetail id="l-1" />);
@@ -49,6 +50,7 @@ describe('LeadDetail', () => {
   it('shows a conflict message without exposing the server response', async () => {
     mockApi({
       'GET /leads/l-1': () => ({ body: makeLead() }),
+      'GET /leads/l-1/reminders': () => page([]),
       'GET /leads/l-1/history': () => page([]),
       'POST /leads/l-1/transitions': () =>
         apiError(409, 'LEAD_STAGE_CHANGED', 'internal state details'),
@@ -66,6 +68,7 @@ describe('LeadDetail', () => {
     const user = userEvent.setup();
     const { calls } = mockApi({
       'GET /leads/l-1': () => ({ body: makeLead() }),
+      'GET /leads/l-1/reminders': () => page([]),
       'GET /leads/l-1/history': () =>
         page([
           {
@@ -100,6 +103,7 @@ describe('LeadDetail', () => {
     const user = userEvent.setup();
     const { calls } = mockApi({
       'GET /leads/l-1': () => ({ body: makeLead({ stage: 'VISITS_AND_CALLS' }) }),
+      'GET /leads/l-1/reminders': () => page([]),
       'GET /leads/l-1/history': () => page([]),
       'POST /leads/l-1/disqualification': () => ({
         body: makeLead({
@@ -138,6 +142,7 @@ describe('LeadDetail', () => {
           lifecycle: { transitions: [], canDisqualify: false, canMarkLost: true },
         }),
       }),
+      'GET /leads/l-1/reminders': () => page([]),
       'GET /leads/l-1/history': () => page([]),
       'POST /leads/l-1/lost': () => ({
         body: makeLead({ stage: 'LOST', lostReason: 'Selected another provider' }),

@@ -1,14 +1,15 @@
 import type { LeadDto, LeadInput } from '@autonova/contracts';
 import { LeadSource } from '@autonova/enums';
+import { tomorrowFollowUp } from '@/lib/nairobi-time';
 
-/** Defaults for a new lead: website source, KES, follow-up due tomorrow. */
+/** Defaults for a new lead: website source, KES, follow-up tomorrow at 09:00 Nairobi time. */
 export function blankInput(): LeadInput {
   return {
     name: '',
     source: LeadSource.Website,
     currency: 'KES',
     nextAction: '',
-    nextActionAt: new Date(Date.now() + 86_400_000).toISOString(),
+    nextActionAt: tomorrowFollowUp(),
   };
 }
 
@@ -21,7 +22,7 @@ export function toInput(lead: LeadDto): LeadInput {
     ...(lead.email ? { email: lead.email } : {}),
     source: lead.source,
     ...(lead.referrerName ? { referrerName: lead.referrerName } : {}),
-    ...(lead.productInterest ? { productInterest: lead.productInterest } : {}),
+    productInterest: lead.productInterest,
     ...(lead.notes ? { notes: lead.notes } : {}),
     ...(lead.estimatedValue ? { estimatedValue: lead.estimatedValue } : {}),
     currency: lead.currency,
@@ -41,7 +42,7 @@ export function toLeadRequestBody(values: LeadInput): LeadInput {
     phone: values.phone?.trim() ?? '',
     email: values.email?.trim().toLowerCase() ?? '',
     referrerName: values.referrerName?.trim() ?? '',
-    productInterest: values.productInterest?.trim() ?? '',
+    productInterest: values.productInterest ?? null,
     notes: values.notes?.trim() ?? '',
     estimatedValue: values.estimatedValue?.trim() || undefined,
   };

@@ -21,6 +21,14 @@ describe('leadFormSchema', () => {
     expect(leadFormSchema.safeParse(valid).success).toBe(true);
   });
 
+  it('accepts only the product catalogue, or no product', () => {
+    expect(leadFormSchema.safeParse({ ...valid, productInterest: 'ERP' }).success).toBe(true);
+    expect(leadFormSchema.safeParse({ ...valid, productInterest: null }).success).toBe(true);
+    expect(leadFormSchema.safeParse({ ...valid, productInterest: 'Fleet tracking' }).success).toBe(
+      false,
+    );
+  });
+
   it('accepts a fully filled lead', () => {
     expect(
       leadFormSchema.safeParse({
@@ -29,7 +37,7 @@ describe('leadFormSchema', () => {
         phone: '+254 700 000000',
         email: 'achieng@example.test',
         referrerName: 'Brian',
-        productInterest: 'Fleet tracking',
+        productInterest: 'RETAIL_POS',
         notes: 'Met at the expo',
         estimatedValue: '120000.50',
         probability: 40,
@@ -87,7 +95,6 @@ describe('leadFormSchema', () => {
     expect(messages({ name: 'x'.repeat(201) }).name).toMatch(/at most 200/);
     expect(leadFormSchema.safeParse({ ...valid, name: ` ${'x'.repeat(200)} ` }).success).toBe(true);
     expect(messages({ phone: 'x'.repeat(41) }).phone).toMatch(/at most 40/);
-    expect(messages({ productInterest: 'x'.repeat(121) }).productInterest).toMatch(/at most 120/);
     expect(messages({ notes: 'x'.repeat(5001) }).notes).toMatch(/at most 5000/);
     expect(messages({ nextAction: 'x'.repeat(501) }).nextAction).toMatch(/at most 500/);
   });
