@@ -1,5 +1,6 @@
 'use client';
 
+import { PipelineCard } from '@/features/sales/pipeline-card';
 import { useAuth } from './auth-context';
 import { roleLabel } from './roles';
 
@@ -9,7 +10,7 @@ export function SessionHome() {
   if (!me) return null; // the shell redirects when there is no session
 
   return (
-    <div className="max-w-xl">
+    <div className="max-w-3xl">
       <h1 className="text-2xl font-semibold text-navy">Welcome, {me.fullName}</h1>
       <p className="mt-1 text-ink-soft">{me.email}</p>
 
@@ -26,6 +27,7 @@ export function SessionHome() {
           ))}
         </ul>
       </section>
+      <PipelineCard />
     </div>
   );
 }

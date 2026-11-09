@@ -21,16 +21,10 @@ import {
   useTransitionLead,
 } from './leads.queries';
 
-const transitionSchema = z
-  .object({
-    toStage: z.enum(enumValues(LeadStage)),
-    reason: z.string().max(1000),
-  })
-  .superRefine((value, context) => {
-    if (value.toStage === LeadStage.Qualified && !value.reason.trim()) {
-      context.addIssue({ code: 'custom', path: ['reason'], message: 'Add a qualification note.' });
-    }
-  });
+const transitionSchema = z.object({
+  toStage: z.enum(enumValues(LeadStage)),
+  reason: z.string().max(1000),
+});
 type TransitionValues = z.infer<typeof transitionSchema>;
 
 const disqualificationSchema = z
@@ -169,7 +163,14 @@ export function LeadLifecycle({ lead }: { lead: LeadDto }) {
         </div>
       ) : null}
 
-      {canUpdate && nextStage ? (
+      {canUpdate && nextStage === LeadStage.Qualified ? (
+        <p className="mt-4 max-w-xl rounded-md border border-line p-4 text-sm">
+          Qualification needs a BANT assessment. Record it in the Qualification section above; the
+          lead moves to Qualified from there.
+        </p>
+      ) : null}
+
+      {canUpdate && nextStage && nextStage !== LeadStage.Qualified ? (
         <form
           onSubmit={submitTransition}
           className="mt-4 grid max-w-xl gap-3 rounded-md border border-line p-4"
@@ -178,25 +179,6 @@ export function LeadLifecycle({ lead }: { lead: LeadDto }) {
           <SelectField label="Next stage" {...transitionForm.register('toStage')}>
             <option value={nextStage}>{labelFor(nextStage)}</option>
           </SelectField>
-          {nextStage === LeadStage.Qualified ? (
-            <label className="grid gap-1 text-sm">
-              <span>Qualification note</span>
-              <textarea
-                className="min-h-20 rounded-md border border-line bg-surface p-3"
-                aria-label="Qualification note"
-                aria-invalid={transitionForm.formState.errors.reason ? true : undefined}
-                {...transitionForm.register('reason')}
-              />
-              {transitionForm.formState.errors.reason ? (
-                <span className="text-xs text-danger">
-                  {transitionForm.formState.errors.reason.message}
-                </span>
-              ) : null}
-              <span className="text-xs text-ink-soft">
-                Record the qualification decision. BANT scoring is not configured yet.
-              </span>
-            </label>
-          ) : null}
           <Button type="submit" disabled={transition.isPending}>
             {transition.isPending ? 'Saving…' : `Move to ${labelFor(nextStage)}`}
           </Button>

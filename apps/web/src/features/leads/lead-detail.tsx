@@ -3,6 +3,10 @@
 import Link from 'next/link';
 import { Alert } from '@/components/ui/alert';
 import { ActivityTimeline } from '@/features/activities/activity-timeline';
+import { ClientAccountCard } from '@/features/sales/client-account-card';
+import { QualificationPanel } from '@/features/sales/qualification-panel';
+import { QuotationsPanel } from '@/features/sales/quotations-panel';
+import { TorWorkspace } from '@/features/sales/tor-workspace';
 import { formatNairobiDateTime } from '@/lib/nairobi-time';
 import { labelFor, productLabel } from './lead-format';
 import { LeadLifecycle } from './lead-lifecycle';
@@ -16,7 +20,7 @@ export function LeadDetail({ id }: { id: string }) {
   if (state.kind === 'loading') return <p role="status">Loading lead…</p>;
   const { lead } = state;
   return (
-    <section className="max-w-3xl">
+    <section className="max-w-4xl">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm text-ink-soft">{labelFor(lead.stage)}</p>
@@ -67,6 +71,10 @@ export function LeadDetail({ id }: { id: string }) {
       <ActivityTimeline lead={lead} />
       <LeadRelationships lead={lead} />
       <LeadReminders lead={lead} />
+      <QualificationPanel lead={lead} />
+      <TorWorkspace lead={lead} />
+      <QuotationsPanel lead={lead} />
+      <ClientAccountCard lead={lead} />
       <LeadLifecycle lead={lead} />
       <Link className="mt-4 inline-block text-sm text-primary underline" href="/leads">
         Back to leads
