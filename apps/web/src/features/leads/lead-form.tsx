@@ -19,6 +19,7 @@ import { CompanyPicker, type PickedCompany } from '@/features/companies/company-
 import { LeadContactPicker, type ContactSelection } from '@/features/companies/lead-contact-picker';
 import { DuplicateWarning } from './duplicate-warning';
 import { labelFor, leadErrorText, productLabel } from './lead-format';
+import { NextActionField } from './next-action-field';
 import { LEAD_FORM_FIELDS, leadFormSchema } from './lead-form-schema';
 import { blankInput, toInput, toLeadRequestBody } from './lead-input';
 import { useCheckDuplicates, useSaveLead } from './leads.queries';
@@ -225,11 +226,17 @@ export function LeadForm({ lead, onSaved, onCancel }: LeadFormProps) {
             </p>
           ) : null}
         </div>
-        <TextField
-          label="Next action"
-          required
-          error={errors.nextAction?.message}
-          {...register('nextAction')}
+        <Controller
+          control={control}
+          name="nextAction"
+          render={({ field }) => (
+            <NextActionField
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              error={errors.nextAction?.message}
+            />
+          )}
         />
         <Controller
           control={control}

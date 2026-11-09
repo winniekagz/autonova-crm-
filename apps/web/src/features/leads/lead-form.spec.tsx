@@ -45,7 +45,7 @@ describe('LeadForm', () => {
 
     await user.type(screen.getByLabelText('Person name'), '  Wanjiru Kamau  ');
     await user.type(screen.getByLabelText('Email'), '  Wanjiru@Example.TEST ');
-    await user.type(screen.getByLabelText('Next action'), 'Send the proposal');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Send proposal');
     await user.click(screen.getByRole('button', { name: 'Create lead' }));
 
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/leads/l-new'));
@@ -53,7 +53,7 @@ describe('LeadForm', () => {
     expect(post?.body).toMatchObject({
       name: 'Wanjiru Kamau',
       email: 'wanjiru@example.test',
-      nextAction: 'Send the proposal',
+      nextAction: 'Send proposal',
       source: 'WEBSITE',
       currency: 'KES',
     });
@@ -64,7 +64,7 @@ describe('LeadForm', () => {
     mockApi({ 'POST /leads': () => apiError(500, 'INTERNAL_ERROR') });
     renderAs(BD, <LeadForm />);
     await user.type(screen.getByLabelText('Person name'), 'Wanjiru Kamau');
-    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Phone call');
     await user.click(screen.getByRole('button', { name: 'Create lead' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('We could not complete the request');
@@ -87,12 +87,12 @@ describe('LeadForm', () => {
       'PATCH /leads/l-1': () => ({ body: makeLead({ nextAction: 'Visit' }) }),
     });
     renderAs(BD, <LeadForm lead={makeLead()} />);
-    const next = screen.getByLabelText('Next action');
-    await user.clear(next);
-    await user.type(next, 'Visit');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Site visit');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     expect(await screen.findByText('Lead saved.')).toBeInTheDocument();
-    expect(calls.find((c) => c.method === 'PATCH')?.body).toMatchObject({ nextAction: 'Visit' });
+    expect(calls.find((c) => c.method === 'PATCH')?.body).toMatchObject({
+      nextAction: 'Site visit',
+    });
     expect(router.replace).not.toHaveBeenCalled();
   });
 
@@ -126,7 +126,7 @@ describe('LeadForm validation', () => {
     expect(await screen.findByText("Enter the lead's name.")).toBeInTheDocument();
     expect(screen.getByText('Enter the next action.')).toBeInTheDocument();
     expect(screen.getByLabelText('Person name')).toBeInvalid();
-    expect(screen.getByLabelText('Next action')).toBeInvalid();
+    expect(screen.getByLabelText(/Next action/)).toBeInvalid();
     expect(calls).toHaveLength(0);
   });
 
@@ -135,7 +135,7 @@ describe('LeadForm validation', () => {
     const { calls } = mockApi({});
     renderAs(BD, <LeadForm />);
     await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
-    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Phone call');
     await user.type(screen.getByLabelText('Email'), 'nope');
     await user.type(screen.getByLabelText('Estimated deal value'), '12.345');
     await user.type(screen.getByLabelText(/Probability/), '150');
@@ -154,7 +154,7 @@ describe('LeadForm validation', () => {
     const { calls } = mockApi({ 'POST /leads': () => ({ body: makeLead({ id: 'l-ref' }) }) });
     renderAs(BD, <LeadForm />);
     await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
-    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Phone call');
     await user.selectOptions(screen.getByLabelText('Lead source'), 'REFERRAL');
     await user.click(screen.getByRole('button', { name: 'Create lead' }));
     expect(await screen.findByText('Enter the referrer for a referral lead.')).toBeInTheDocument();
@@ -171,7 +171,7 @@ describe('LeadForm validation', () => {
     const { calls } = mockApi({ 'POST /leads': () => ({ body: makeLead({ id: 'l-p' }) }) });
     renderAs(BD, <LeadForm />);
     await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
-    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Phone call');
     await user.type(screen.getByLabelText(/Probability/), '40');
     await user.click(screen.getByRole('button', { name: 'Create lead' }));
     await waitFor(() => expect(calls).toHaveLength(1));
@@ -183,7 +183,7 @@ describe('LeadForm validation', () => {
     const { calls } = mockApi({ 'POST /leads': () => ({ body: makeLead({ id: 'l-d' }) }) });
     renderAs(BD, <LeadForm />);
     await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
-    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Phone call');
     fireEvent.change(screen.getByLabelText('Follow-up date'), { target: { value: '2026-12-24' } });
     await user.click(screen.getByRole('button', { name: 'Create lead' }));
     await waitFor(() => expect(calls).toHaveLength(1));
@@ -213,7 +213,7 @@ describe('LeadForm validation', () => {
     });
     renderAs(BD, <LeadForm />);
     await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
-    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Phone call');
     await user.click(screen.getByRole('button', { name: 'Create lead' }));
 
     expect(await screen.findByText('Server says no')).toBeInTheDocument();
@@ -233,7 +233,7 @@ describe('LeadForm validation', () => {
     vi.stubGlobal('fetch', fetchMock);
     renderAs(BD, <LeadForm />);
     await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
-    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Phone call');
     await user.click(screen.getByRole('button', { name: 'Create lead' }));
     const busy = await screen.findByRole('button', { name: 'Saving…' });
     expect(busy).toBeDisabled();
@@ -264,7 +264,7 @@ describe('LeadForm product interest', () => {
       'Custom Build',
     ]);
     await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
-    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Phone call');
     await user.selectOptions(select, 'Car Wash Automation');
     await user.click(screen.getByRole('button', { name: 'Create lead' }));
     await waitFor(() => expect(router.replace).toHaveBeenCalled());
@@ -278,7 +278,7 @@ describe('LeadForm product interest', () => {
     const { calls } = mockApi({ 'POST /leads': () => ({ body: makeLead({ id: 'l-new' }) }) });
     renderAs(BD, <LeadForm />);
     await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
-    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Phone call');
     await user.click(screen.getByRole('button', { name: 'Create lead' }));
     await waitFor(() => expect(router.replace).toHaveBeenCalled());
     expect(calls.find((c) => c.method === 'POST')?.body).toMatchObject({ productInterest: null });
@@ -351,7 +351,7 @@ describe('LeadForm duplicate detection', () => {
     });
     renderAs(BD, <LeadForm />);
     await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
-    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Phone call');
     await user.type(screen.getByLabelText('Phone'), '0712345678');
     // Submitting straight from the field, without leaving it first: the server is the safety net.
     await user.click(screen.getByRole('button', { name: 'Create lead' }));
@@ -397,7 +397,7 @@ describe('LeadForm follow-up date', () => {
     const { calls } = mockApi({ 'POST /leads': () => ({ body: makeLead({ id: 'l-new' }) }) });
     renderAs(BD, <LeadForm />);
     await user.type(screen.getByLabelText('Person name'), 'Wanjiru');
-    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Phone call');
     fireEvent.change(screen.getByLabelText('Follow-up date'), { target: { value: '2026-12-24' } });
     await user.click(screen.getByRole('button', { name: 'Create lead' }));
     await waitFor(() => expect(router.replace).toHaveBeenCalled());

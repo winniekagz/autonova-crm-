@@ -70,7 +70,7 @@ describe('LeadsList', () => {
 
     await user.click(screen.getByRole('button', { name: 'New lead' }));
     await user.type(screen.getByLabelText('Person name', { exact: false }), 'Wanjiru Kamau');
-    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.selectOptions(screen.getByLabelText(/Next action/), 'Phone call');
     await user.click(screen.getByRole('button', { name: 'Create lead', hidden: true }));
 
     expect(await screen.findByRole('link', { name: 'Wanjiru Kamau' })).toBeInTheDocument();
