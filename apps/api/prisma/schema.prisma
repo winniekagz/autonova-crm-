@@ -110,6 +110,89 @@ enum LeadDisqualificationReason {
 enum LeadTransitionSource {
   MANUAL
   SCHEDULED_REVISIT
+  TOR_SENT
+  CONVERSION
+}
+
+enum QualificationRating {
+  NOT_MET
+  PARTIALLY_MET
+  FULLY_MET
+}
+
+enum TorVersionStatus {
+  DRAFT
+  SENT
+  SIGNED
+  SUPERSEDED
+}
+
+enum DiscountType {
+  NONE
+  PERCENT
+  AMOUNT
+}
+
+enum VatTreatment {
+  APPLIED
+  EXEMPT
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum TorAddonKind {
+  TRAINING_DAYS
+  HARDWARE
+  DATA_MIGRATION
+  SMS_BUNDLE
+  OTHER
+}
+
+enum MilestoneKind {
+  REQUIREMENTS_SIGN_OFF
+  DEMO
+  UAT
+  GO_LIVE
+  TRAINING
+  OTHER
+}
+
+enum SignatureParty {
+  CLIENT
+  AUTONOVA
+}
+
+enum SignatureMethod {
+  TYPED_NAME
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  EXPIRED
+  REJECTED
+}
+
+enum QuotationKind {
+  FROM_TOR
+  QUICK
+}
+
+enum QuotationLineKind {
+  SCOPE
+  ADDON
+  CUSTOM
+}
+
+enum ClientAccountStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
 }
 
 /// A person who can sign in. Users are never hard-deleted: they are referenced by
@@ -148,6 +231,16 @@ model User {
   archivedActivities  Activity[]           @relation("ActivityArchiver")
   uploadedAttachments ActivityAttachment[] @relation("AttachmentUploader")
   updatedContacts     Contact[]            @relation("ContactUpdater")
+  updatedSettings     SystemSetting[]      @relation("SettingUpdater")
+  assessedLeads       LeadQualification[]  @relation("QualificationAssessor")
+  createdCatalogue    CatalogueItem[]      @relation("CatalogueCreator")
+  createdTors         Tor[]                @relation("TorCreator")
+  createdTorVersions  TorVersion[]         @relation("TorVersionCreator")
+  sentTorVersions     TorVersion[]         @relation("TorVersionSender")
+  approvedTorVersions TorVersion[]         @relation("TorDiscountApprover")
+  recordedSignatures  TorSignature[]       @relation("TorSignatureRecorder")
+  createdQuotations   Quotation[]          @relation("QuotationCreator")
+  convertedClients    ClientAccount[]      @relation("ClientConverter")
 
   @@map("users")
 }
@@ -205,16 +298,20 @@ model Lead {
   createdAt              DateTime                    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime                    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  owner          User               @relation("LeadOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  creator        User               @relation("LeadCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  lostBy         User?              @relation("LeadLostBy", fields: [lostByUserId], references: [id], onDelete: Restrict)
-  disqualifiedBy User?              @relation("LeadDisqualifiedBy", fields: [disqualifiedByUserId], references: [id], onDelete: Restrict)
+  owner          User                @relation("LeadOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  creator        User                @relation("LeadCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  lostBy         User?               @relation("LeadLostBy", fields: [lostByUserId], references: [id], onDelete: Restrict)
+  disqualifiedBy User?               @relation("LeadDisqualifiedBy", fields: [disqualifiedByUserId], references: [id], onDelete: Restrict)
   stageHistory   LeadStageHistory[]
   reminders      LeadReminder[]
-  company        Company?           @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  primaryContact Contact?           @relation("LeadPrimaryContact", fields: [primaryContactId], references: [id], onDelete: Restrict)
+  company        Company?            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  primaryContact Contact?            @relation("LeadPrimaryContact", fields: [primaryContactId], references: [id], onDelete: Restrict)
   contacts       LeadContact[]
   activities     Activity[]
+  qualifications LeadQualification[]
+  tor            Tor?
+  quotations     Quotation[]
+  clientAccount  ClientAccount?
 
   @@index([companyId, ownerUserId])
   @@index([primaryContactId])
@@ -250,11 +347,12 @@ model Company {
   createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  createdBy  User      @relation("CompanyCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  updatedBy  User      @relation("CompanyUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
-  archivedBy User?     @relation("CompanyArchiver", fields: [archivedByUserId], references: [id], onDelete: Restrict)
-  contacts   Contact[]
-  leads      Lead[]
+  createdBy      User            @relation("CompanyCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy      User            @relation("CompanyUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  archivedBy     User?           @relation("CompanyArchiver", fields: [archivedByUserId], references: [id], onDelete: Restrict)
+  contacts       Contact[]
+  leads          Lead[]
+  clientAccounts ClientAccount[]
 
   @@index([nameNormalized])
   @@index([createdByUserId])
@@ -438,9 +536,13 @@ model LeadStageHistory {
   disqualificationReason LeadDisqualificationReason? @map("disqualification_reason")
   revisitOn              DateTime?                   @map("revisit_on") @db.Date
   source                 LeadTransitionSource        @default(MANUAL)
+  /// The BANT assessment a move to Qualified relied on, and whether a Director overrode a failing result.
+  qualificationId        String?                     @map("qualification_id") @db.Uuid
+  qualificationOverride  Boolean                     @default(false) @map("qualification_override")
 
-  lead  Lead  @relation(fields: [leadId], references: [id], onDelete: Restrict)
-  actor User? @relation("LeadTransitionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  lead          Lead               @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  qualification LeadQualification? @relation(fields: [qualificationId], references: [id], onDelete: Restrict)
+  actor         User?              @relation("LeadTransitionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
 
   @@index([leadId, occurredAt(sort: Desc)])
   @@index([toStage, disqualificationReason, occurredAt(sort: Desc)])
@@ -611,4 +713,297 @@ model AuditLog {
   @@index([occurredAt(sort: Desc)])
   @@index([category, occurredAt(sort: Desc)])
   @@map("audit_logs")
+}
+
+/// Settings the Director can change without a deploy. Values are validated by the owning module before
+/// they are written; a missing row means "use the documented default".
+model SystemSetting {
+  key             String   @id
+  value           Json
+  updatedByUserId String?  @map("updated_by_user_id") @db.Uuid
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  updatedBy User? @relation("SettingUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@map("system_settings")
+}
+
+/// A managed number series (quotations, ToRs, client accounts), one counter per series and year.
+model NumberSequence {
+  series    String
+  year      Int
+  lastValue Int    @map("last_value")
+
+  @@id([series, year])
+  @@map("number_sequences")
+}
+
+/// One BANT assessment. Insert-only history: the latest row is the current assessment. The pass mark and
+/// weights in force are copied onto the row so a later settings change never rewrites an old result.
+model LeadQualification {
+  id               String              @id @default(uuid(7)) @db.Uuid
+  leadId           String              @map("lead_id") @db.Uuid
+  budgetRating     QualificationRating @map("budget_rating")
+  authorityRating  QualificationRating @map("authority_rating")
+  needRating       QualificationRating @map("need_rating")
+  timelineRating   QualificationRating @map("timeline_rating")
+  score            Int
+  passMark         Int                 @map("pass_mark")
+  weights          Json
+  passed           Boolean
+  notes            String?
+  assessedByUserId String              @map("assessed_by_user_id") @db.Uuid
+  assessedAt       DateTime            @default(now()) @map("assessed_at") @db.Timestamptz(3)
+
+  lead       Lead               @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  assessedBy User               @relation("QualificationAssessor", fields: [assessedByUserId], references: [id], onDelete: Restrict)
+  history    LeadStageHistory[]
+
+  @@index([leadId, assessedAt(sort: Desc)])
+  @@map("lead_qualifications")
+}
+
+/// Reusable scope item. Copied into a ToR version when chosen; later edits here never change a ToR.
+model CatalogueItem {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  name            String
+  description     String?
+  productInterest ProductInterest? @map("product_interest")
+  defaultDays     Decimal          @map("default_days") @db.Decimal(6, 2)
+  defaultPrice    Decimal          @map("default_price") @db.Decimal(14, 2)
+  currency        String           @default("KES")
+  active          Boolean          @default(true)
+  createdByUserId String           @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  createdBy  User           @relation("CatalogueCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  scopeItems TorScopeItem[]
+
+  @@index([active, name])
+  @@map("catalogue_items")
+}
+
+/// The scope agreement of one deal (lead). Its content lives in numbered versions.
+model Tor {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  number          String   @unique
+  leadId          String   @unique @map("lead_id") @db.Uuid
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  lead          Lead            @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  createdBy     User            @relation("TorCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  versions      TorVersion[]
+  clientAccount ClientAccount[]
+
+  @@map("tors")
+}
+
+/// One scope-alignment round. DRAFT is editable; SENT, SIGNED and SUPERSEDED are frozen by database triggers.
+model TorVersion {
+  id                       String           @id @default(uuid(7)) @db.Uuid
+  torId                    String           @map("tor_id") @db.Uuid
+  versionNo                Int              @map("version_no")
+  status                   TorVersionStatus @default(DRAFT)
+  currency                 String           @default("KES")
+  setupFee                 Decimal          @default(0) @map("setup_fee") @db.Decimal(14, 2)
+  discountType             DiscountType     @default(NONE) @map("discount_type")
+  discountValue            Decimal          @default(0) @map("discount_value") @db.Decimal(14, 2)
+  hostingName              String?          @map("hosting_name")
+  hostingDescription       String?          @map("hosting_description")
+  hostingCycle             BillingCycle?    @map("hosting_cycle")
+  hostingAmount            Decimal          @default(0) @map("hosting_amount") @db.Decimal(14, 2)
+  paymentTerms             String?          @map("payment_terms")
+  vatTreatment             VatTreatment     @default(APPLIED) @map("vat_treatment")
+  vatRate                  Decimal          @default(16) @map("vat_rate") @db.Decimal(5, 2)
+  changeSummary            String?          @map("change_summary")
+  scopeTotal               Decimal          @default(0) @map("scope_total") @db.Decimal(14, 2)
+  addonsTotal              Decimal          @default(0) @map("addons_total") @db.Decimal(14, 2)
+  oneOffSubtotal           Decimal          @default(0) @map("one_off_subtotal") @db.Decimal(14, 2)
+  discountAmount           Decimal          @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  netOneOff                Decimal          @default(0) @map("net_one_off") @db.Decimal(14, 2)
+  vatOneOff                Decimal          @default(0) @map("vat_one_off") @db.Decimal(14, 2)
+  totalOneOff              Decimal          @default(0) @map("total_one_off") @db.Decimal(14, 2)
+  recurringVat             Decimal          @default(0) @map("recurring_vat") @db.Decimal(14, 2)
+  recurringTotal           Decimal          @default(0) @map("recurring_total") @db.Decimal(14, 2)
+  discountApprovedByUserId String?          @map("discount_approved_by_user_id") @db.Uuid
+  discountApprovedAt       DateTime?        @map("discount_approved_at") @db.Timestamptz(3)
+  sentAt                   DateTime?        @map("sent_at") @db.Timestamptz(3)
+  sentByUserId             String?          @map("sent_by_user_id") @db.Uuid
+  contentHash              String?          @map("content_hash")
+  signedAt                 DateTime?        @map("signed_at") @db.Timestamptz(3)
+  createdByUserId          String           @map("created_by_user_id") @db.Uuid
+  createdAt                DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  tor              Tor            @relation(fields: [torId], references: [id], onDelete: Restrict)
+  createdBy        User           @relation("TorVersionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  sentBy           User?          @relation("TorVersionSender", fields: [sentByUserId], references: [id], onDelete: Restrict)
+  discountApprover User?          @relation("TorDiscountApprover", fields: [discountApprovedByUserId], references: [id], onDelete: Restrict)
+  scopeItems       TorScopeItem[]
+  addons           TorAddon[]
+  milestones       TorMilestone[]
+  signatures       TorSignature[]
+  quotations       Quotation[]
+  clientAccount    ClientAccount?
+
+  @@unique([torId, versionNo])
+  @@index([status, sentAt])
+  @@map("tor_versions")
+}
+
+model TorScopeItem {
+  id              String  @id @default(uuid(7)) @db.Uuid
+  torVersionId    String  @map("tor_version_id") @db.Uuid
+  /// Stable across versions so a later round can say which item was added, dropped or changed.
+  itemKey         String  @map("item_key") @db.Uuid
+  catalogueItemId String? @map("catalogue_item_id") @db.Uuid
+  position        Int
+  name            String
+  description     String?
+  inScope         Boolean @default(true) @map("in_scope")
+  estimateDays    Decimal @default(0) @map("estimate_days") @db.Decimal(6, 2)
+  price           Decimal @default(0) @db.Decimal(14, 2)
+
+  version   TorVersion     @relation(fields: [torVersionId], references: [id], onDelete: Restrict)
+  catalogue CatalogueItem? @relation(fields: [catalogueItemId], references: [id], onDelete: Restrict)
+
+  @@index([torVersionId, position])
+  @@map("tor_scope_items")
+}
+
+model TorAddon {
+  id           String       @id @default(uuid(7)) @db.Uuid
+  torVersionId String       @map("tor_version_id") @db.Uuid
+  kind         TorAddonKind
+  description  String
+  quantity     Decimal      @default(1) @db.Decimal(8, 2)
+  unitPrice    Decimal      @default(0) @map("unit_price") @db.Decimal(14, 2)
+  position     Int
+
+  version TorVersion @relation(fields: [torVersionId], references: [id], onDelete: Restrict)
+
+  @@index([torVersionId, position])
+  @@map("tor_addons")
+}
+
+model TorMilestone {
+  id           String        @id @default(uuid(7)) @db.Uuid
+  torVersionId String        @map("tor_version_id") @db.Uuid
+  kind         MilestoneKind
+  name         String
+  targetDate   DateTime      @map("target_date") @db.Date
+  position     Int
+
+  version TorVersion @relation(fields: [torVersionId], references: [id], onDelete: Restrict)
+
+  @@index([torVersionId, position])
+  @@map("tor_milestones")
+}
+
+/// One party's sign-off on one exact version. Insert-only; at most one per party per version.
+model TorSignature {
+  id               String          @id @default(uuid(7)) @db.Uuid
+  torVersionId     String          @map("tor_version_id") @db.Uuid
+  party            SignatureParty
+  signerName       String          @map("signer_name")
+  signerTitle      String?         @map("signer_title")
+  method           SignatureMethod @default(TYPED_NAME)
+  evidenceNote     String?         @map("evidence_note")
+  contentHash      String          @map("content_hash")
+  signedAt         DateTime        @default(now()) @map("signed_at") @db.Timestamptz(3)
+  recordedByUserId String          @map("recorded_by_user_id") @db.Uuid
+
+  version    TorVersion @relation(fields: [torVersionId], references: [id], onDelete: Restrict)
+  recordedBy User       @relation("TorSignatureRecorder", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([torVersionId, party])
+  @@map("tor_signatures")
+}
+
+model Quotation {
+  id              String          @id @default(uuid(7)) @db.Uuid
+  number          String          @unique
+  leadId          String          @map("lead_id") @db.Uuid
+  kind            QuotationKind
+  torVersionId    String?         @map("tor_version_id") @db.Uuid
+  status          QuotationStatus @default(DRAFT)
+  currency        String          @default("KES")
+  validUntil      DateTime        @map("valid_until") @db.Date
+  vatTreatment    VatTreatment    @default(APPLIED) @map("vat_treatment")
+  vatRate         Decimal         @default(16) @map("vat_rate") @db.Decimal(5, 2)
+  discountType    DiscountType    @default(NONE) @map("discount_type")
+  discountValue   Decimal         @default(0) @map("discount_value") @db.Decimal(14, 2)
+  hostingName     String?         @map("hosting_name")
+  hostingCycle    BillingCycle?   @map("hosting_cycle")
+  hostingAmount   Decimal         @default(0) @map("hosting_amount") @db.Decimal(14, 2)
+  oneOffSubtotal  Decimal         @default(0) @map("one_off_subtotal") @db.Decimal(14, 2)
+  discountAmount  Decimal         @default(0) @map("discount_amount") @db.Decimal(14, 2)
+  netOneOff       Decimal         @default(0) @map("net_one_off") @db.Decimal(14, 2)
+  vatOneOff       Decimal         @default(0) @map("vat_one_off") @db.Decimal(14, 2)
+  totalOneOff     Decimal         @default(0) @map("total_one_off") @db.Decimal(14, 2)
+  recurringVat    Decimal         @default(0) @map("recurring_vat") @db.Decimal(14, 2)
+  recurringTotal  Decimal         @default(0) @map("recurring_total") @db.Decimal(14, 2)
+  notes           String?
+  sentAt          DateTime?       @map("sent_at") @db.Timestamptz(3)
+  decidedAt       DateTime?       @map("decided_at") @db.Timestamptz(3)
+  createdByUserId String          @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  lead       Lead            @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  torVersion TorVersion?     @relation(fields: [torVersionId], references: [id], onDelete: Restrict)
+  createdBy  User            @relation("QuotationCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  lines      QuotationLine[]
+
+  @@index([leadId, createdAt(sort: Desc)])
+  @@index([torVersionId])
+  @@index([status, validUntil])
+  @@map("quotations")
+}
+
+model QuotationLine {
+  id          String            @id @default(uuid(7)) @db.Uuid
+  quotationId String            @map("quotation_id") @db.Uuid
+  position    Int
+  kind        QuotationLineKind
+  description String
+  quantity    Decimal           @default(1) @db.Decimal(8, 2)
+  unitPrice   Decimal           @map("unit_price") @db.Decimal(14, 2)
+  lineTotal   Decimal           @map("line_total") @db.Decimal(14, 2)
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+
+  @@index([quotationId, position])
+  @@map("quotation_lines")
+}
+
+/// Created exactly once per signed ToR version, in the same transaction as the second signature.
+model ClientAccount {
+  id                 String              @id @default(uuid(7)) @db.Uuid
+  number             String              @unique
+  leadId             String              @unique @map("lead_id") @db.Uuid
+  torId              String              @map("tor_id") @db.Uuid
+  signedTorVersionId String              @unique @map("signed_tor_version_id") @db.Uuid
+  companyId          String?             @map("company_id") @db.Uuid
+  name               String
+  status             ClientAccountStatus @default(ACTIVE)
+  goLiveDate         DateTime?           @map("go_live_date") @db.Date
+  planName           String?             @map("plan_name")
+  billingCycle       BillingCycle?       @map("billing_cycle")
+  planAmount         Decimal             @default(0) @map("plan_amount") @db.Decimal(14, 2)
+  currency           String              @default("KES")
+  nextRenewalDate    DateTime?           @map("next_renewal_date") @db.Date
+  convertedByUserId  String              @map("converted_by_user_id") @db.Uuid
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  lead          Lead       @relation(fields: [leadId], references: [id], onDelete: Restrict)
+  tor           Tor        @relation(fields: [torId], references: [id], onDelete: Restrict)
+  signedVersion TorVersion @relation(fields: [signedTorVersionId], references: [id], onDelete: Restrict)
+  company       Company?   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  convertedBy   User       @relation("ClientConverter", fields: [convertedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([companyId])
+  @@map("client_accounts")
 }

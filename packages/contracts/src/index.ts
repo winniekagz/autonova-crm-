@@ -173,7 +173,7 @@ export interface LeadLifecycleOptions {
   canMarkLost: boolean;
 }
 
-export type LeadTransitionSource = 'MANUAL' | 'SCHEDULED_REVISIT';
+export type LeadTransitionSource = 'MANUAL' | 'SCHEDULED_REVISIT' | 'TOR_SENT' | 'CONVERSION';
 
 export interface LeadStageHistoryDto {
   id: string;
@@ -187,6 +187,10 @@ export interface LeadStageHistoryDto {
   disqualificationReason: LeadDisqualificationReason | null;
   revisitOn: string | null;
   source: LeadTransitionSource;
+  /** Set when a move to Qualified relied on a BANT assessment. */
+  qualificationScore?: number | null;
+  /** True when a Director qualified the lead although the assessment did not pass. */
+  qualificationOverride?: boolean;
 }
 
 export interface LeadInput {
@@ -459,42 +463,5 @@ export interface ActivityInput {
   attendees?: ActivityAttendeeInput[];
 }
 
-/** What a retention review found, without changing anything. */
-export interface RetentionCandidateDto {
-  kind: 'GPS' | 'VOICE_NOTE';
-  activityId: string;
-  leadId: string;
-  attachmentId: string | null;
-  recordedAt: string;
-  ageMonths: number;
-  /** A held report is listed but cannot be purged. */
-  held: boolean;
-  holdReference: string | null;
-}
-
-export interface RetentionReviewDto {
-  asOf: string;
-  gpsMonths: number;
-  voiceNoteMonths: number;
-  candidates: RetentionCandidateDto[];
-}
-
-export interface RetentionApprovalRequest {
-  /** What the approval covers, so a person approves a reviewed list and never "everything". */
-  items: { kind: 'GPS' | 'VOICE_NOTE'; activityId: string; attachmentId?: string }[];
-  /** The policy decision or ticket this purge follows. */
-  reference: string;
-  reason: string;
-}
-
-export interface RetentionOutcomeDto {
-  purged: number;
-  skippedHeld: number;
-  skippedNotDue: number;
-  failed: number;
-}
-
-export interface PlaceHoldRequest {
-  reference: string;
-  reason: string;
-}
+export * from './retention.js';
+export * from './sales.js';

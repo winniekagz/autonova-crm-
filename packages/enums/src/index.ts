@@ -43,6 +43,16 @@ export const PermissionKey = {
   ActivitiesUpdate: 'activities:update',
   ActivitiesArchive: 'activities:archive',
   ActivitiesRetention: 'activities:retention',
+  QualificationOverride: 'qualification:override',
+  SettingsManage: 'settings:manage',
+  CatalogueRead: 'catalogue:read',
+  CatalogueManage: 'catalogue:manage',
+  TorsRead: 'tors:read',
+  TorsWrite: 'tors:write',
+  TorsApprove: 'tors:approve',
+  QuotationsRead: 'quotations:read',
+  QuotationsWrite: 'quotations:write',
+  ClientsRead: 'clients:read',
 } as const;
 export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];
 
@@ -161,6 +171,9 @@ export type LeadDisqualificationReason =
 export const LeadTransitionSource = {
   Manual: 'MANUAL',
   ScheduledRevisit: 'SCHEDULED_REVISIT',
+  /** The commercial workflow moved the lead: sending a ToR, or a both-parties signature converting it. */
+  TorSent: 'TOR_SENT',
+  Conversion: 'CONVERSION',
 } as const;
 export type LeadTransitionSource = (typeof LeadTransitionSource)[keyof typeof LeadTransitionSource];
 
@@ -183,6 +196,84 @@ export const LeadReminderReason = {
   TooOverdue: 'TOO_OVERDUE',
 } as const;
 export type LeadReminderReason = (typeof LeadReminderReason)[keyof typeof LeadReminderReason];
+
+/** How well a BANT criterion is met. The backend turns the four ratings into a score; the client never sends one. */
+export const QualificationRating = {
+  NotMet: 'NOT_MET',
+  PartiallyMet: 'PARTIALLY_MET',
+  FullyMet: 'FULLY_MET',
+} as const;
+export type QualificationRating = (typeof QualificationRating)[keyof typeof QualificationRating];
+
+/** A ToR version is DRAFT (editable), SENT (frozen, awaiting signatures), SIGNED (locked), or SUPERSEDED (replaced by a newer sent version). */
+export const TorVersionStatus = {
+  Draft: 'DRAFT',
+  Sent: 'SENT',
+  Signed: 'SIGNED',
+  Superseded: 'SUPERSEDED',
+} as const;
+export type TorVersionStatus = (typeof TorVersionStatus)[keyof typeof TorVersionStatus];
+
+export const DiscountType = { None: 'NONE', Percent: 'PERCENT', Amount: 'AMOUNT' } as const;
+export type DiscountType = (typeof DiscountType)[keyof typeof DiscountType];
+
+export const VatTreatment = { Applied: 'APPLIED', Exempt: 'EXEMPT' } as const;
+export type VatTreatment = (typeof VatTreatment)[keyof typeof VatTreatment];
+
+export const BillingCycle = {
+  Monthly: 'MONTHLY',
+  Quarterly: 'QUARTERLY',
+  Annual: 'ANNUAL',
+} as const;
+export type BillingCycle = (typeof BillingCycle)[keyof typeof BillingCycle];
+
+export const TorAddonKind = {
+  TrainingDays: 'TRAINING_DAYS',
+  Hardware: 'HARDWARE',
+  DataMigration: 'DATA_MIGRATION',
+  SmsBundle: 'SMS_BUNDLE',
+  Other: 'OTHER',
+} as const;
+export type TorAddonKind = (typeof TorAddonKind)[keyof typeof TorAddonKind];
+
+export const MilestoneKind = {
+  RequirementsSignOff: 'REQUIREMENTS_SIGN_OFF',
+  Demo: 'DEMO',
+  Uat: 'UAT',
+  GoLive: 'GO_LIVE',
+  Training: 'TRAINING',
+  Other: 'OTHER',
+} as const;
+export type MilestoneKind = (typeof MilestoneKind)[keyof typeof MilestoneKind];
+
+export const SignatureParty = { Client: 'CLIENT', Autonova: 'AUTONOVA' } as const;
+export type SignatureParty = (typeof SignatureParty)[keyof typeof SignatureParty];
+
+/** Phase 1 records a typed name confirmed by staff. Drawn signatures, OTP and signed scans are not built. */
+export const SignatureMethod = { TypedName: 'TYPED_NAME' } as const;
+export type SignatureMethod = (typeof SignatureMethod)[keyof typeof SignatureMethod];
+
+export const QuotationStatus = {
+  Draft: 'DRAFT',
+  Sent: 'SENT',
+  Accepted: 'ACCEPTED',
+  Expired: 'EXPIRED',
+  Rejected: 'REJECTED',
+} as const;
+export type QuotationStatus = (typeof QuotationStatus)[keyof typeof QuotationStatus];
+
+export const QuotationKind = { FromTor: 'FROM_TOR', Quick: 'QUICK' } as const;
+export type QuotationKind = (typeof QuotationKind)[keyof typeof QuotationKind];
+
+export const QuotationLineKind = { Scope: 'SCOPE', Addon: 'ADDON', Custom: 'CUSTOM' } as const;
+export type QuotationLineKind = (typeof QuotationLineKind)[keyof typeof QuotationLineKind];
+
+export const ClientAccountStatus = {
+  Active: 'ACTIVE',
+  Suspended: 'SUSPENDED',
+  Closed: 'CLOSED',
+} as const;
+export type ClientAccountStatus = (typeof ClientAccountStatus)[keyof typeof ClientAccountStatus];
 
 export function enumValues<T extends Record<string, string>>(e: T): [T[keyof T], ...T[keyof T][]] {
   return Object.values(e) as [T[keyof T], ...T[keyof T][]];
