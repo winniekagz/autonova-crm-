@@ -24,7 +24,15 @@ import { blankInput, toInput, toLeadRequestBody } from './lead-input';
 import { useCheckDuplicates, useSaveLead } from './leads.queries';
 import { useLead } from './use-lead';
 
-export function LeadForm({ lead }: { lead?: LeadDto }) {
+interface LeadFormProps {
+  lead?: LeadDto;
+  /** Set when the form sits in a drawer: no page heading, one column, and the caller decides what follows a save. */
+  onSaved?: (lead: LeadDto) => void;
+  onCancel?: () => void;
+}
+
+export function LeadForm({ lead, onSaved, onCancel }: LeadFormProps) {
+  const embedded = onSaved !== undefined || onCancel !== undefined;
   const { me } = useAuth();
   const router = useRouter();
   const save = useSaveLead(lead);
@@ -87,7 +95,8 @@ export function LeadForm({ lead }: { lead?: LeadDto }) {
             }),
         ...(acknowledged ? { acknowledgeDuplicates: true } : {}),
       });
-      if (!lead) router.replace(`/leads/${result.id}`);
+      if (onSaved) onSaved(result);
+      else if (!lead) router.replace(`/leads/${result.id}`);
     } catch (cause) {
       // Everything typed stays in the form; the message says what to fix.
       if (cause instanceof ApiError && cause.code === 'LEAD_DUPLICATE_SUSPECTED') {
@@ -101,9 +110,11 @@ export function LeadForm({ lead }: { lead?: LeadDto }) {
 
   const problem = formError ?? (save.isError ? leadErrorText(save.error) : null);
   return (
-    <section className="max-w-3xl">
-      <h1 className="text-2xl font-semibold text-navy">{lead ? 'Update lead' : 'New lead'}</h1>
-      <p className="mt-1 text-sm text-ink-soft">
+    <section className={embedded ? undefined : 'max-w-3xl'}>
+      {embedded ? null : (
+        <h1 className="text-2xl font-semibold text-navy">{lead ? 'Update lead' : 'New lead'}</h1>
+      )}
+      <p className={`text-sm text-ink-soft ${embedded ? '' : 'mt-1'}`}>
         Owner: {lead?.ownerName || me?.fullName}; new leads start in New Lead. The owner is emailed
         a reminder at 09:00 Nairobi time on the follow-up date.
       </p>
@@ -120,7 +131,11 @@ export function LeadForm({ lead }: { lead?: LeadDto }) {
       <form
         onSubmit={onSubmit}
         noValidate
-        className="mt-5 grid gap-4 rounded-lg border border-line bg-surface p-4 sm:grid-cols-2 sm:p-6"
+        className={
+          embedded
+            ? 'mt-4 grid gap-4 sm:grid-cols-2'
+            : 'mt-5 grid gap-4 rounded-lg border border-line bg-surface p-4 sm:grid-cols-2 sm:p-6'
+        }
       >
         <TextField
           label="Person name"
@@ -273,7 +288,9 @@ export function LeadForm({ lead }: { lead?: LeadDto }) {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => router.push(lead ? `/leads/${lead.id}` : '/leads')}
+            onClick={() =>
+              onCancel ? onCancel() : router.push(lead ? `/leads/${lead.id}` : '/leads')
+            }
           >
             Cancel
           </Button>

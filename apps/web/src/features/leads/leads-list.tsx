@@ -2,17 +2,23 @@
 
 import { PermissionKey } from '@autonova/enums';
 import Link from 'next/link';
-import type { FormEvent } from 'react';
-import { useUrlParams } from '@/hooks/use-url-params';
-import { formatNairobiDate } from '@/lib/nairobi-time';
-import { pageParam, readPage, readSearch } from '@/lib/url-params';
+import { useState, type FormEvent } from 'react';
+import type { LeadDto } from '@autonova/contracts';
+import { DataTable } from '@/components/data-table/data-table';
+import { useDataTable } from '@/components/data-table/use-data-table';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { TextField } from '@/components/ui/text-field';
 import { useAuth } from '@/features/auth/auth-context';
 import { can } from '@/features/auth/permissions';
-import { labelFor, leadErrorText } from './lead-format';
+import { useUrlParams } from '@/hooks/use-url-params';
+import { pageParam, readPage, readSearch } from '@/lib/url-params';
+import { leadErrorText } from './lead-format';
+import { leadColumns, leadInitialVisibility } from './leads-table';
+import { NewLeadDrawer } from './new-lead-drawer';
 import { useLeadsList } from './leads.queries';
+
+const PAGE_SIZE = 20;
 
 export function LeadsList() {
   const { me } = useAuth();
@@ -21,14 +27,26 @@ export function LeadsList() {
   const search = readSearch(searchParams.get('q'));
   const page = readPage(searchParams.get('page'));
   const allowed = can(me, PermissionKey.LeadsList);
+  const canCreate = can(me, PermissionKey.LeadsCreate);
   const query = useLeadsList(search, page, allowed);
+  const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState<LeadDto | null>(null);
 
-  const loading = query.isPending && allowed;
-  const items = query.data?.items ?? [];
-  const total = query.data?.total ?? 0;
-  const error = query.isError ? leadErrorText(query.error) : null;
+  const table = useDataTable({
+    columns: leadColumns,
+    data: query.data?.items,
+    total: query.data?.total,
+    page,
+    pageSize: PAGE_SIZE,
+    onPageChange: (next) => update({ page: pageParam(next) }),
+    initialVisibility: leadInitialVisibility,
+  });
 
   if (!allowed) return <Alert tone="warning">You do not have permission to view leads.</Alert>;
+
+  const error = query.isError ? leadErrorText(query.error) : null;
+  const filtered = search !== '';
+
   return (
     <section>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -36,105 +54,82 @@ export function LeadsList() {
           <h1 className="text-2xl font-semibold text-navy">Leads</h1>
           <p className="mt-1 text-sm text-ink-soft">Your pipeline and next follow-ups</p>
         </div>
-        {can(me, PermissionKey.LeadsCreate) ? (
-          <Link
-            href="/leads/new"
-            className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-medium text-white"
+        {canCreate ? (
+          <Button
+            onClick={() => {
+              setCreated(null);
+              setCreating(true);
+            }}
           >
             New lead
-          </Link>
+          </Button>
         ) : null}
       </div>
-      <form
-        className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end"
-        onSubmit={(event: FormEvent<HTMLFormElement>) => {
-          event.preventDefault();
-          const text = new FormData(event.currentTarget).get('q');
-          update({ q: readSearch(typeof text === 'string' ? text : ''), page: null });
-        }}
-        role="search"
-      >
-        <div className="w-full sm:max-w-md">
-          <TextField
-            label="Search leads"
-            type="search"
-            name="q"
-            // Uncontrolled and re-created when the URL's search changes (Back, a pasted link).
-            key={search}
-            defaultValue={search}
-            placeholder="Name, company, email or phone"
-          />
-        </div>
-        <Button variant="secondary">Search</Button>
-      </form>
-      {error ? (
+      {created ? (
         <div className="mt-4">
-          <Alert tone="error">{error}</Alert>
+          <Alert tone="success">
+            Lead {created.name} created.{' '}
+            <Link className="font-medium underline" href={`/leads/${created.id}`}>
+              Open lead
+            </Link>
+          </Alert>
         </div>
       ) : null}
-      {loading ? (
-        <p role="status" className="mt-6 text-sm text-ink-soft">
-          Loading leads…
-        </p>
-      ) : error ? null : items.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-line bg-surface p-6">
-          <h2 className="font-semibold">No leads yet</h2>
-          <p className="mt-1 text-sm text-ink-soft">Add a prospect to start tracking follow-ups.</p>
-        </div>
-      ) : (
-        <div className="mt-5 overflow-x-auto rounded-lg border border-line bg-surface">
-          <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="bg-canvas text-ink-soft">
-              <tr>
-                <th className="p-3 font-medium">Lead</th>
-                <th className="p-3 font-medium">Company</th>
-                <th className="p-3 font-medium">Stage</th>
-                <th className="p-3 font-medium">Next action</th>
-                <th className="p-3 font-medium">Follow-up</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((lead) => (
-                <tr key={lead.id} className="border-t border-line">
-                  <td className="p-3">
-                    <Link className="font-medium text-primary underline" href={`/leads/${lead.id}`}>
-                      {lead.name}
-                    </Link>
-                    <div className="text-xs text-ink-soft">
-                      {lead.email || lead.phone || 'No contact details'}
-                    </div>
-                  </td>
-                  <td className="p-3">{lead.companyName || 'Individual'}</td>
-                  <td className="p-3">{labelFor(lead.stage)}</td>
-                  <td className="max-w-64 p-3">{lead.nextAction}</td>
-                  <td className="p-3">{formatNairobiDate(lead.nextActionAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <div className="mt-4 flex items-center justify-between text-sm">
-        <span>
-          {total} lead{total === 1 ? '' : 's'}
-        </span>
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            disabled={page <= 1 || loading}
-            onClick={() => update({ page: pageParam(page - 1) })}
+      <DataTable
+        table={table}
+        label="leads"
+        loading={query.isPending}
+        fetching={query.isPlaceholderData}
+        error={error}
+        onRetry={() => void query.refetch()}
+        toolbar={
+          <form
+            className="flex max-w-xl items-end gap-3"
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              const text = new FormData(event.currentTarget).get('q');
+              update({ q: readSearch(typeof text === 'string' ? text : ''), page: null });
+            }}
+            role="search"
           >
-            Previous
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={page * 20 >= total || loading}
-            onClick={() => update({ page: pageParam(page + 1) })}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
+            <div className="flex-1">
+              <TextField
+                label="Search leads"
+                type="search"
+                name="q"
+                // Uncontrolled and re-created when the URL's search changes (Back, a pasted link).
+                key={search}
+                defaultValue={search}
+                placeholder="Name, company, email or phone"
+              />
+            </div>
+            <Button variant="secondary">Search</Button>
+          </form>
+        }
+        empty={
+          <div className="rounded-lg border border-dashed border-line bg-surface p-8 text-center">
+            <h2 className="font-semibold">{filtered ? 'No leads match' : 'No leads yet'}</h2>
+            <p className="mt-1 text-sm text-ink-soft">
+              {filtered
+                ? 'Try a different search.'
+                : 'Add a prospect to start tracking follow-ups.'}
+            </p>
+          </div>
+        }
+      />
+      {canCreate ? (
+        <NewLeadDrawer
+          open={creating}
+          onClose={() => setCreating(false)}
+          // The save already invalidated the lists, so the table refetches on its own. New leads are
+          // the most recently updated, so page 1 is where this one appears.
+          onCreated={(lead) => {
+            setCreating(false);
+            setCreated(lead);
+            if (page > 1) update({ page: null });
+          }}
+        />
+      ) : null}
     </section>
   );
 }

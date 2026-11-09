@@ -27,8 +27,70 @@ describe('LeadsList', () => {
     const link = await screen.findByRole('link', { name: 'Achieng Otieno' });
     expect(link).toHaveAttribute('href', '/leads/l-1');
     expect(screen.getByText('New Lead')).toBeInTheDocument();
-    expect(screen.getByText('1 lead')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'New lead' })).toHaveAttribute('href', '/leads/new');
+    expect(
+      screen.getByText(
+        (_, el) =>
+          el?.tagName === 'P' && /^Showing\s*1\s*of\s*1\s*lead$/.test(el.textContent?.trim() ?? ''),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New lead' })).toBeInTheDocument();
+  });
+
+  it('opens a right drawer with the lead form, and closes it again', async () => {
+    const user = userEvent.setup();
+    mockApi({ 'GET /leads': () => page([makeLead()]) });
+    renderAs(BD, <LeadsList />);
+    await screen.findByRole('link', { name: 'Achieng Otieno' });
+    expect(screen.queryByLabelText('Person name')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'New lead' }));
+    expect(screen.getByRole('heading', { name: 'New lead', hidden: true })).toBeInTheDocument();
+    expect(screen.getByLabelText('Person name', { exact: false })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel', hidden: true }));
+    expect(screen.queryByLabelText('Person name', { exact: false })).not.toBeInTheDocument();
+  });
+
+  it('after creating a lead, closes the drawer, refetches the table and shows the new row', async () => {
+    const user = userEvent.setup();
+    let created = false;
+    const { calls } = mockApi({
+      'GET /leads': () =>
+        page(
+          created ? [makeLead(), makeLead({ id: 'l-new', name: 'Wanjiru Kamau' })] : [makeLead()],
+        ),
+      'POST /leads': () => {
+        created = true;
+        return { body: makeLead({ id: 'l-new', name: 'Wanjiru Kamau' }) };
+      },
+    });
+    renderAs(BD, <LeadsList />);
+    await screen.findByRole('link', { name: 'Achieng Otieno' });
+    expect(calls.filter((c) => c.method === 'GET' && c.path === '/leads')).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'New lead' }));
+    await user.type(screen.getByLabelText('Person name', { exact: false }), 'Wanjiru Kamau');
+    await user.type(screen.getByLabelText('Next action'), 'Call');
+    await user.click(screen.getByRole('button', { name: 'Create lead', hidden: true }));
+
+    expect(await screen.findByRole('link', { name: 'Wanjiru Kamau' })).toBeInTheDocument();
+    expect(screen.getByText(/created\./)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Person name', { exact: false })).not.toBeInTheDocument();
+    expect(calls.filter((c) => c.method === 'GET' && c.path === '/leads')).toHaveLength(2);
+    expect(currentUrl()).toBe('/leads');
+  });
+
+  it('lets people hide a column from the Columns menu', async () => {
+    const user = userEvent.setup();
+    mockApi({ 'GET /leads': () => page([makeLead()]) });
+    renderAs(BD, <LeadsList />);
+    await screen.findByRole('link', { name: 'Achieng Otieno' });
+    expect(screen.queryByRole('columnheader', { name: 'Owner' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Columns/ }));
+    await user.click(screen.getByRole('checkbox', { name: 'Owner' }));
+    expect(screen.getByRole('columnheader', { name: 'Owner' })).toBeInTheDocument();
+    expect(screen.getByText('Dee Director')).toBeInTheDocument();
   });
 
   it('shows an empty state when there are no leads', async () => {
@@ -56,7 +118,7 @@ describe('LeadsList', () => {
     mockApi({ 'GET /leads': () => page([makeLead()]) });
     renderAs(READ_ONLY, <LeadsList />);
     await screen.findByRole('link', { name: 'Achieng Otieno' });
-    expect(screen.queryByRole('link', { name: 'New lead' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New lead' })).not.toBeInTheDocument();
   });
 
   it('searches on the server and pages through results', async () => {

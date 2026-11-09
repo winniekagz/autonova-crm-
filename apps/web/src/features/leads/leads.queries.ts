@@ -1,7 +1,7 @@
 'use client';
 
 import type { LeadDto, LeadDuplicateCheckRequest, LeadSaveRequest } from '@autonova/contracts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthedRequest } from '@/features/auth/use-authed-request';
 import * as leadsApi from './api';
 
@@ -21,6 +21,8 @@ export function useLeadsList(search: string, page: number, enabled: boolean) {
     queryKey: leadsKeys.list(search, page),
     queryFn: () => request((token) => leadsApi.listLeads(token, search, page)),
     enabled,
+    // Paging keeps the current rows on screen until the next page arrives.
+    placeholderData: keepPreviousData,
   });
 }
 
