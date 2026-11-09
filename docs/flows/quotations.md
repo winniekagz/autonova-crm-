@@ -1,25 +1,28 @@
 # Flow: Quotations
 
-**Implementation status:** ⏳ Not started — Phase 6. Stub: records PRD-sourced rules and open questions only; the full flow definition (journeys, endpoints, tests) is written in the Design step of that phase, before code.
+**Implementation status:** 🟡 Implemented and tested (SOW §4.6). Not built: email/WhatsApp delivery, a scheduler for automatic expiry, revision of a sent quote.
 
 ## Purpose
 
-§4.6
+Present the commercial offer. **A quotation never converts a lead**: accepting one records the client's answer and touches neither the lead nor the ToR.
 
-## Actors and permissions
+## Rules enforced
 
-Present the commercial offer based on the agreed scope; it never converts a lead by itself.
+- Two kinds: **from a ToR** (`POST /leads/:id/quotations/from-tor`) copies the lines and totals of a **sent or later** version, and **quick** (`…/quick`) is a standalone quote with custom lines. A ToR draft cannot be quoted (`QUOTATION_TOR_NOT_SENT`).
+- Number `QT-YYYY-NNNN` from the atomic number sequence. Validity date defaults to 30 days (setting) and must not be in the past.
+- Status: `DRAFT → SENT → ACCEPTED | REJECTED`; `EXPIRED` when the validity date passes while the quote is open. Expiry is **derived on read**; `expireDue()` can persist it, but no scheduler runs it yet.
+- A sent quote's lines and totals are frozen by trigger; only its status moves. Edits mean a new quote.
+- Totals come from the same exact-decimal calculator as the ToR.
+- PDF: `GET /leads/:id/quotations/:qid/pdf`.
 
-## Rules from the PRD (Director and Business Development (draft/send); Finance read.)
+## Permissions
 
-- Generate from the latest ToR version, or a standalone quick quote.
-- Managed number series, validity date; statuses draft/sent/accepted/expired/rejected.
-- **Acceptance of a quote is not conversion.**
+`quotations:read` / `quotations:write` (BD and Director). Scoped to leads the caller may see.
 
-## Data (target model — see [04](../04-database-design.md))
+## Audit
 
-`quotations` (+ lines), `number_sequences`.
+Created, status changed, PDF generated.
 
 ## Open questions
 
-Numbering format and default validity (Q18) · immutability after sending / revisions (Q19) · state effect of acceptance before ToR signature (Q20).
+Numbering format and default validity (Q18) · immutability and revisions (Q19) · effect of acceptance before ToR signature (Q20; currently none).

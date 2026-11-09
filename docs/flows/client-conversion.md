@@ -1,26 +1,19 @@
 # Flow: Client conversion
 
-**Implementation status:** ⏳ Not started — Phase 6. Stub: records PRD-sourced rules and open questions only; the full flow definition (journeys, endpoints, tests) is written in the Design step of that phase, before code.
+**Implementation status:** 🟡 Implemented and tested (SOW §4.7): automatic, idempotent, transactional conversion on the second signature. Client accounts are **read-only**; there is no onboarding, billing or support yet.
 
 ## Purpose
 
-§4.7, §6.4, §13
+Turn a deal into a client account when both parties have signed the same ToR version, and at no other moment.
 
-## Actors and permissions
+## Rules enforced
 
-Turn a deal into a client account at the moment both parties have signed the ToR — and at no other moment.
+- Trigger: the **second** distinct party signs the same SENT version. Quote acceptance, a verbal agreement or a stage change never convert.
+- In one transaction: lock the ToR row, re-read the lead and refuse a non-open lead (`TOR_LEAD_CLOSED`), lock the version, create the account `CL-YYYY-NNNN` from the signed version, move the lead to **Won** (source `CONVERSION`), write audit.
+- **Idempotent:** one account per signed version (unique `signed_tor_version_id`) and per lead. A repeated or concurrent second signature fails on the party-unique constraint and creates nothing. Tested with concurrent requests.
+- The account snapshots the signed content: company, plan name, billing cycle and amount, go-live date from the milestones, and a link to the signed version. Later catalogue or ToR changes cannot alter it.
+- Clients are visible only to people who may see the originating lead. `GET /clients`, `GET /clients/by-lead/:leadId`, `GET /clients/:id` (`clients:read`). No create, edit or delete route exists, and a trigger blocks changes to the signed link.
 
-## Rules from the PRD (System action triggered by the final signature; Director can view/repair via audited admin action.)
+## Not built / unresolved
 
-- Preconditions: both parties' signatures recorded on the same ToR version.
-- Effects (one transaction): deal → Won; create exactly one client account; link signed ToR, milestones, subscription; audit.
-- **Idempotent:** repeated callbacks/retries create no duplicate (UNIQUE on the signed ToR version).
-- Quote acceptance, verbal agreement or a stage change are never sufficient.
-
-## Data (target model — see [04](../04-database-design.md))
-
-`client_accounts` (go-live, plan, billing cycle, next renewal, status; balance computed), UNIQUE(signed_tor_version_id).
-
-## Open questions
-
-Company with several signed deals — one or several client accounts (Q21) · who may reopen Lost deals (Q2).
+Onboarding, subscriptions and invoicing; a company with several signed deals (currently one account per signed deal, Q21); reopening a Lost deal (Q2); a Director repair action; change requests after signing.

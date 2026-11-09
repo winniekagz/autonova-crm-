@@ -271,6 +271,27 @@ Won conversion awaits signed-ToR workflow implementation.
 User list pagination defaults to `page=1` and `pageSize=25`; page size is capped at 100. The
 currently seeded role keys are `director`, `business_development`, `technical_lead`, and `finance`.
 
+### Sales workflow (SOW §4.4–4.7)
+
+All routes are private (bearer token), scoped to leads the caller may see, and return the standard error envelope. Money is a decimal string.
+
+| Method and path                                                                             | Permission                             | Notes                                                               |
+| ------------------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------- |
+| `GET/POST /leads/{id}/qualification`, `GET …/qualification/history`                         | `leads:read` / `leads:update`          | BANT; score calculated by the server                                |
+| `POST /leads/{id}/qualify`                                                                  | `leads:update`                         | The only route to Qualified; override needs a Director and a reason |
+| `GET/PUT /settings/qualification`                                                           | `leads:read` / `settings:manage`       | Weights and pass mark                                               |
+| `GET/POST /leads/{id}/tor`, `PUT …/tor/draft`, `POST …/tor/versions`                        | `tors:read` / `tors:write`             | Versioned ToR; `POST …/versions` returns 201                        |
+| `GET …/tor/versions/{n}`, `GET …/tor/versions/{from}/diff/{to}`                             | `tors:read`                            | Version and change log                                              |
+| `POST …/tor/approve-discount`                                                               | `tors:approve`                         | Director only                                                       |
+| `POST …/tor/send`, `POST …/tor/versions/{n}/sign`                                           | `tors:write`                           | Send freezes; second signature converts                             |
+| `GET …/tor/versions/{n}/pdf`                                                                | `tors:read`                            | `application/pdf`                                                   |
+| `GET/POST/PUT /catalogue`                                                                   | `catalogue:read` / `catalogue:manage`  | Reusable scope items (copied into a ToR)                            |
+| `GET/POST /leads/{id}/quotations`, `…/from-tor`, `…/quick`, `…/{qid}/status`, `…/{qid}/pdf` | `quotations:read` / `quotations:write` | Acceptance never converts                                           |
+| `GET /clients`, `/clients/by-lead/{leadId}`, `/clients/{id}`                                | `clients:read`                         | Read-only                                                           |
+| `GET /pipeline/summary`                                                                     | `leads:list`                           | Counts within the caller's scope                                    |
+
+Error codes added: `USE_QUALIFY_ENDPOINT`, `QUALIFICATION_NOT_ASSESSED`, `QUALIFICATION_NOT_PASSED`, `OVERRIDE_REQUIRES_DIRECTOR`, `QUALIFICATION_WRONG_STAGE`, `TOR_NOT_FOUND`, `TOR_EXISTS`, `TOR_LEAD_NOT_QUALIFIED`, `TOR_VERSION_NOT_DRAFT`, `TOR_VERSION_ALREADY_OPEN`, `TOR_SIGNED`, `TOR_NOTHING_IN_SCOPE`, `TOR_DISCOUNT_APPROVAL_REQUIRED`, `TOR_VERSION_NOT_SENT`, `TOR_VERSION_SUPERSEDED`, `TOR_PARTY_ALREADY_SIGNED`, `TOR_AUTONOVA_SIGNER_MUST_BE_DIRECTOR`, `TOR_LEAD_CLOSED`, `QUOTATION_TOR_NOT_SENT`, `QUOTATION_INVALID_TRANSITION`, `QUOTATION_ALREADY_PAST`.
+
 ## Authentication and access
 
 Protected requests use `Authorization: Bearer <accessToken>`. Access tokens expire after 15 minutes

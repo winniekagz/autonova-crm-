@@ -334,6 +334,16 @@ Each category is a required scenario list; tests are written with the feature (s
 
 ---
 
+## Sales workflow controls (SOW §4.4–4.7)
+
+- **BANT gate:** Qualified is reachable only through `POST /leads/{id}/qualify`; the generic transition refuses it. Overriding a failed assessment is Director-only (`qualification:override`) and needs a written reason.
+- **Commercial evidence is append-only:** assessments, sent and signed ToR versions with their children, signatures, sent quotations and client accounts are protected by database triggers, and the application role has UPDATE/DELETE/TRUNCATE revoked on them.
+- **Server-side pricing:** totals are computed only on the server; the client sends inputs. A signature stores the version's SHA-256 content hash.
+- **Discount approval** is Director-only (`tors:approve`) and cleared by any edit to the draft.
+- **Signing:** typed-name method only; the Autonova signer must be a Director. A signature on a closed lead is refused.
+- **Scope:** every ToR, quotation and client route resolves the lead through the caller's ownership scope; a lead the caller cannot see returns 404.
+- **Not yet covered:** OTP or drawn signatures, signed-document storage, and delivery of the ToR by email or WhatsApp.
+
 ## Open security decisions
 
 | #   | Decision                                                                                                                                                                                                                                 | Needed from                  | Blocks                                                                 |
