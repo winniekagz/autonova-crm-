@@ -41,7 +41,7 @@ describe('CompaniesList', () => {
     );
     expect(screen.getByText('A123456789B')).toBeInTheDocument();
     expect(within(screen.getByRole('table')).getByText('Logistics')).toBeInTheDocument();
-    expect(screen.getByText('2 companies')).toBeInTheDocument();
+    expect(screen.getByText(/of\s*2 companies/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'New company' })).toHaveAttribute(
       'href',
       '/companies/new',

@@ -6,6 +6,8 @@ import Link from 'next/link';
 import type { FormEvent } from 'react';
 import { useUrlParams } from '@/hooks/use-url-params';
 import { pageParam, readChoice, readPage, readSearch } from '@/lib/url-params';
+import { DataTable } from '@/components/data-table/data-table';
+import { useDataTable } from '@/components/data-table/use-data-table';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { SelectField } from '@/components/ui/select-field';
@@ -19,6 +21,7 @@ import { PermissionDenied } from './permission-denied';
 import { RolesLoadNotice } from './roles-load-notice';
 import { useRoles } from './use-roles';
 import { useUsersList } from './users.queries';
+import { userColumns } from './users-table';
 
 const PAGE_SIZE = 20;
 
@@ -42,9 +45,6 @@ function toLoadState(query: {
   return query.data ? { kind: 'ready', page: query.data } : { kind: 'loading' };
 }
 
-const formatDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString('en-KE', { dateStyle: 'medium' }) : 'Never';
-
 export function UserList() {
   const { me } = useAuth();
 
@@ -66,6 +66,15 @@ export function UserList() {
     allowed && can(me, PermissionKey.RolesList),
   );
   const roles = rolesState.kind === 'ready' ? rolesState.roles : [];
+
+  const table = useDataTable({
+    columns: userColumns,
+    data: usersQuery.data?.items,
+    total: usersQuery.data?.total,
+    page,
+    pageSize: PAGE_SIZE,
+    onPageChange: (next) => update({ page: pageParam(next) }),
+  });
 
   if (!allowed || state.kind === 'denied') return <PermissionDenied what="view users" />;
 
@@ -145,143 +154,52 @@ export function UserList() {
         </div>
       ) : null}
 
-      <div className="mt-5" aria-live="polite" aria-busy={state.kind === 'loading'}>
-        {state.kind === 'loading' ? <ListSkeleton /> : null}
-
-        {state.kind === 'error' ? (
-          <div className="space-y-3">
-            <Alert tone="error">{state.message}</Alert>
-            <Button variant="secondary" onClick={() => void usersQuery.refetch()}>
-              Try again
-            </Button>
-          </div>
-        ) : null}
-
-        {state.kind === 'ready' && state.page.items.length === 0 && page > 1 ? (
-          <div className="space-y-3">
-            <Alert tone="info">There are no users on page {page}. The list may have changed.</Alert>
-            <Button variant="secondary" onClick={() => update({ page: null })}>
-              Go to the first page
-            </Button>
-          </div>
-        ) : null}
-
-        {state.kind === 'ready' && state.page.items.length === 0 && page === 1 ? (
-          <div className="rounded-lg border border-dashed border-line bg-surface p-8 text-center">
-            <p className="font-medium">
-              {filtersActive ? 'No users match your filters' : 'No users yet'}
-            </p>
-            <p className="mt-1 text-ink-soft">
-              {filtersActive
-                ? 'Try a different search or clear the filters.'
-                : 'Invite the first person to get started.'}
-            </p>
-            {!filtersActive && canCreate ? (
-              <Link href="/users/new" className="mt-3 inline-block text-primary underline">
-                Invite user
-              </Link>
-            ) : null}
-          </div>
-        ) : null}
-
-        {state.kind === 'ready' && state.page.items.length > 0 ? (
-          <UserTable page={state.page} onPage={(next) => update({ page: pageParam(next) })} />
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function ListSkeleton() {
-  return (
-    <div className="space-y-2" role="status" aria-label="Loading users">
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="h-14 animate-pulse rounded-lg border border-line bg-surface" />
-      ))}
-    </div>
-  );
-}
-
-function UserTable({ page, onPage }: { page: Paginated<UserDto>; onPage: (p: number) => void }) {
-  const totalPages = Math.max(1, Math.ceil(page.total / page.pageSize));
-  return (
-    <>
-      {/* Phone: compact cards. Desktop: table (docs/webdesign.md §9). */}
-      <ul className="space-y-2 md:hidden" aria-label="Users">
-        {page.items.map((user) => (
-          <li key={user.id} className="rounded-lg border border-line bg-surface p-3">
-            <div className="flex items-start justify-between gap-2">
-              <Link href={`/users/${user.id}`} className="font-medium text-primary underline">
-                {user.fullName}
-              </Link>
-              <UserStatusBadge status={user.status} />
-            </div>
-            <p className="mt-0.5 break-all text-ink-soft">{user.email}</p>
-            <p className="mt-1 text-[13px]">{user.roles.map(roleLabel).join(', ')}</p>
-          </li>
-        ))}
-      </ul>
-
-      <div className="hidden overflow-x-auto rounded-lg border border-line bg-surface md:block">
-        <table className="w-full text-left text-[13px]">
-          <caption className="sr-only">Users</caption>
-          <thead className="border-b border-line bg-canvas text-ink-soft">
-            <tr>
-              <th scope="col" className="px-4 py-2 font-medium">
-                Name
-              </th>
-              <th scope="col" className="px-4 py-2 font-medium">
-                Roles
-              </th>
-              <th scope="col" className="px-4 py-2 font-medium">
-                Status
-              </th>
-              <th scope="col" className="px-4 py-2 font-medium">
-                Last sign-in
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {page.items.map((user) => (
-              <tr key={user.id} className="border-b border-line last:border-0">
-                <td className="px-4 py-3">
-                  <Link href={`/users/${user.id}`} className="font-medium text-primary underline">
-                    {user.fullName}
-                  </Link>
-                  <div className="text-ink-soft">{user.email}</div>
-                </td>
-                <td className="px-4 py-3">{user.roles.map(roleLabel).join(', ')}</td>
-                <td className="px-4 py-3">
-                  <UserStatusBadge status={user.status} />
-                </td>
-                <td className="px-4 py-3 tabular-nums">{formatDate(user.lastLoginAt)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <nav aria-label="Pagination" className="mt-3 flex items-center justify-between">
-        <p className="text-[13px] text-ink-soft">
-          Page {page.page} of {totalPages} · {page.total} {page.total === 1 ? 'user' : 'users'}
-        </p>
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            disabled={page.page <= 1}
-            onClick={() => onPage(page.page - 1)}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="secondary"
-            disabled={page.page >= totalPages}
-            onClick={() => onPage(page.page + 1)}
-          >
-            Next
+      {state.kind === 'ready' && state.page.items.length === 0 && page > 1 ? (
+        <div className="mt-5 space-y-3">
+          <Alert tone="info">There are no users on page {page}. The list may have changed.</Alert>
+          <Button variant="secondary" onClick={() => update({ page: null })}>
+            Go to the first page
           </Button>
         </div>
-      </nav>
-    </>
+      ) : (
+        <DataTable
+          table={table}
+          label="users"
+          loading={state.kind === 'loading'}
+          fetching={usersQuery.isPlaceholderData}
+          error={state.kind === 'error' ? state.message : null}
+          onRetry={() => void usersQuery.refetch()}
+          renderCard={(user) => (
+            <>
+              <div className="flex items-start justify-between gap-2">
+                <Link href={`/users/${user.id}`} className="font-medium text-primary underline">
+                  {user.fullName}
+                </Link>
+                <UserStatusBadge status={user.status} />
+              </div>
+              <p className="mt-0.5 break-all text-ink-soft">{user.email}</p>
+              <p className="mt-1 text-[13px]">{user.roles.map(roleLabel).join(', ')}</p>
+            </>
+          )}
+          empty={
+            <div className="rounded-lg border border-dashed border-line bg-surface p-8 text-center">
+              <p className="font-medium">
+                {filtersActive ? 'No users match your filters' : 'No users yet'}
+              </p>
+              <p className="mt-1 text-ink-soft">
+                {filtersActive
+                  ? 'Try a different search or clear the filters.'
+                  : 'Invite the first person to get started.'}
+              </p>
+              {!filtersActive && canCreate ? (
+                <Link href="/users/new" className="mt-3 inline-block text-primary underline">
+                  Invite user
+                </Link>
+              ) : null}
+            </div>
+          }
+        />
+      )}
+    </div>
   );
 }

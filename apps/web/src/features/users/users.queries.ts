@@ -1,7 +1,7 @@
 'use client';
 
 import type { UserDto } from '@autonova/contracts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthedRequest } from '@/features/auth/use-authed-request';
 import * as usersApi from './api';
 
@@ -24,6 +24,7 @@ export function useUsersList(query: usersApi.UserListQuery, enabled: boolean) {
     queryKey: usersKeys.list(query),
     queryFn: () => request((token) => usersApi.listUsers(token, query)),
     enabled,
+    placeholderData: keepPreviousData,
   });
 }
 

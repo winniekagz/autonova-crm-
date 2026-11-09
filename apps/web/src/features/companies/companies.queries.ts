@@ -8,7 +8,7 @@ import type {
   ContactInput,
   LeadRelationshipsRequest,
 } from '@autonova/contracts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthedRequest } from '@/features/auth/use-authed-request';
 import { setLeadRelationships } from '@/features/leads/api';
 import { leadsKeys } from '@/features/leads/leads.queries';
@@ -32,6 +32,7 @@ export function useCompaniesList(query: api.CompanyListQuery, enabled: boolean, 
     queryKey: companiesKeys.list(query, pageSize),
     queryFn: () => request((token) => api.listCompanies(token, query, pageSize)),
     enabled,
+    placeholderData: keepPreviousData,
   });
 }
 

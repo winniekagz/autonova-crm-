@@ -181,7 +181,8 @@ describe('UserList', () => {
       'GET /roles': () => ({ body: ROLES }),
     });
     renderAs(DIRECTOR, <UserList />);
-    expect(await screen.findByText(/Page 1 of 3 · 45 users/)).toBeInTheDocument();
+    expect(await screen.findByText(/Page 1 of 3/)).toBeInTheDocument();
+    expect(screen.getByText(/of\s*45 users/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled();
 
     await user.click(screen.getByRole('button', { name: 'Next' }));
