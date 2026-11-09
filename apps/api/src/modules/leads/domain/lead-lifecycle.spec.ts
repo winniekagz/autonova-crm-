@@ -21,16 +21,13 @@ describe('lead lifecycle rules', () => {
     expect(canTransitionLead(Stage.Lost, Stage.NewLead)).toBe(false);
   });
 
-  it('requires a qualification note and rejects terminal/outcome stages in generic transitions', () => {
-    expect(validateLeadTransition(Stage.VisitsAndCalls, Stage.Qualified)).toEqual({
-      ok: false,
-      code: 'QUALIFICATION_NOTE_REQUIRED',
-    });
-    expect(validateLeadTransition(Stage.VisitsAndCalls, Stage.Qualified, 'BANT discussed')).toEqual(
-      {
-        ok: true,
-      },
-    );
+  it('never reaches Qualified through the generic transition, and rejects terminal/outcome stages', () => {
+    for (const reason of [undefined, 'BANT discussed']) {
+      expect(validateLeadTransition(Stage.VisitsAndCalls, Stage.Qualified, reason)).toEqual({
+        ok: false,
+        code: 'USE_QUALIFY_ENDPOINT',
+      });
+    }
     expect(validateLeadTransition(Stage.TorQuoteSent, Stage.Lost, 'Competitor')).toEqual({
       ok: false,
       code: 'INVALID_STAGE_TRANSITION',

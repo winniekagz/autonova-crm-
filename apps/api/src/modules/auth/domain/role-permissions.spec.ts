@@ -33,10 +33,29 @@ describe('ROLE_PERMISSIONS', () => {
       PermissionKey.ActivitiesRead,
       PermissionKey.ActivitiesCreate,
       PermissionKey.ActivitiesUpdate,
+      PermissionKey.CatalogueRead,
+      PermissionKey.TorsRead,
+      PermissionKey.TorsWrite,
+      PermissionKey.QuotationsRead,
+      PermissionKey.QuotationsWrite,
+      PermissionKey.ClientsRead,
     ]);
     expect(ROLE_PERMISSIONS[SystemRoleKey.Director]).toContain(PermissionKey.CompaniesArchive);
     expect(ROLE_PERMISSIONS[SystemRoleKey.TechnicalLead]).toEqual([]);
     expect(ROLE_PERMISSIONS[SystemRoleKey.Finance]).toEqual([]);
+  });
+
+  it('keeps override, discount approval, settings and catalogue management Director-only', () => {
+    const bd = ROLE_PERMISSIONS[SystemRoleKey.BusinessDevelopment];
+    for (const key of [
+      PermissionKey.QualificationOverride,
+      PermissionKey.TorsApprove,
+      PermissionKey.SettingsManage,
+      PermissionKey.CatalogueManage,
+    ]) {
+      expect(bd).not.toContain(key);
+      expect(ROLE_PERMISSIONS[SystemRoleKey.Director]).toContain(key);
+    }
   });
 
   it('grants every defined permission to at least one role, so none is dead', () => {

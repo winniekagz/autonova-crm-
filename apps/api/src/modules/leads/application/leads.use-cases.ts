@@ -55,6 +55,8 @@ const COMPANY_ARCHIVED_FOR_LEAD = {
 const LIFECYCLE_MESSAGES = {
   INVALID_STAGE_TRANSITION: 'This lead cannot move between those stages.',
   QUALIFICATION_NOTE_REQUIRED: 'Add a note confirming the qualification result.',
+  USE_QUALIFY_ENDPOINT:
+    'Record a BANT assessment and use Qualify: a lead cannot be moved to Qualified any other way.',
   LOST_REASON_REQUIRED: 'Enter a reason for marking this lead lost.',
   INVALID_DISQUALIFICATION_REASON: 'Choose a valid disqualification reason.',
   REVISIT_DATE_REQUIRED: 'Choose a follow-up date for revisit later.',

@@ -242,7 +242,26 @@ describe('leads (e2e)', () => {
         .set(bearer(ownerToken))
         .send({ fromStage, toStage, ...(reason ? { reason } : {}) });
     expect((await move('NEW_LEAD', 'VISITS_AND_CALLS')).status).toBe(200);
-    expect((await move('VISITS_AND_CALLS', 'QUALIFIED', 'BANT review recorded')).status).toBe(200);
+    // The generic transition is not a way around the BANT gate.
+    const bypass = await move('VISITS_AND_CALLS', 'QUALIFIED', 'BANT review recorded');
+    expect(bypass.status).toBe(409);
+    expect(bypass.body.code).toBe('USE_QUALIFY_ENDPOINT');
+    const ratings = {
+      budget: 'FULLY_MET',
+      authority: 'FULLY_MET',
+      need: 'FULLY_MET',
+      timeline: 'FULLY_MET',
+    };
+    await http()
+      .post(`/api/v1/leads/${id}/qualification`)
+      .set(bearer(ownerToken))
+      .send(ratings)
+      .expect(201);
+    await http()
+      .post(`/api/v1/leads/${id}/qualify`)
+      .set(bearer(ownerToken))
+      .send({ fromStage: 'VISITS_AND_CALLS' })
+      .expect(200);
     expect((await move('QUALIFIED', 'SCOPE_ALIGNMENT')).status).toBe(200);
     expect((await move('SCOPE_ALIGNMENT', 'TOR_QUOTE_SENT')).status).toBe(200);
 

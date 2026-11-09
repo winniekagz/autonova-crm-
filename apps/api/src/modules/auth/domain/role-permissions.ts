@@ -32,6 +32,16 @@ export const ROLE_PERMISSIONS: Record<SystemRoleKey, readonly PermissionKey[]> =
     PermissionKey.ActivitiesUpdate,
     PermissionKey.ActivitiesArchive,
     PermissionKey.ActivitiesRetention,
+    PermissionKey.QualificationOverride,
+    PermissionKey.SettingsManage,
+    PermissionKey.CatalogueRead,
+    PermissionKey.CatalogueManage,
+    PermissionKey.TorsRead,
+    PermissionKey.TorsWrite,
+    PermissionKey.TorsApprove,
+    PermissionKey.QuotationsRead,
+    PermissionKey.QuotationsWrite,
+    PermissionKey.ClientsRead,
   ],
   // PRD §2.2–2.3 and §4.1 explicitly grant BD users own leads and own pipeline.
   [SystemRoleKey.BusinessDevelopment]: [
@@ -50,6 +60,14 @@ export const ROLE_PERMISSIONS: Record<SystemRoleKey, readonly PermissionKey[]> =
     PermissionKey.ActivitiesRead,
     PermissionKey.ActivitiesCreate,
     PermissionKey.ActivitiesUpdate,
+    // PRD 4.5/4.6: BD drafts and sends ToRs and quotations on their own leads. Discount approval and the
+    // qualification override stay with Directors.
+    PermissionKey.CatalogueRead,
+    PermissionKey.TorsRead,
+    PermissionKey.TorsWrite,
+    PermissionKey.QuotationsRead,
+    PermissionKey.QuotationsWrite,
+    PermissionKey.ClientsRead,
   ],
   [SystemRoleKey.TechnicalLead]: [],
   [SystemRoleKey.Finance]: [],
@@ -74,6 +92,18 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   [PermissionKey.CompaniesUpdate]:
     'Edit a company and its contacts in the caller’s permitted scope',
   [PermissionKey.CompaniesArchive]: 'Archive a company or contact',
+  [PermissionKey.QualificationOverride]:
+    'Qualify a lead whose BANT assessment did not pass, with a recorded reason',
+  [PermissionKey.SettingsManage]:
+    'Change system settings such as the BANT pass mark and discount threshold',
+  [PermissionKey.CatalogueRead]: 'View the reusable scope catalogue',
+  [PermissionKey.CatalogueManage]: 'Create and edit catalogue items',
+  [PermissionKey.TorsRead]: 'View Terms of Reference on visible leads',
+  [PermissionKey.TorsWrite]: 'Draft, version, send and record signatures on Terms of Reference',
+  [PermissionKey.TorsApprove]: 'Approve a discount above the threshold before a ToR is sent',
+  [PermissionKey.QuotationsRead]: 'View quotations on visible leads',
+  [PermissionKey.QuotationsWrite]: 'Create quotations and move them through their statuses',
+  [PermissionKey.ClientsRead]: 'View client accounts created from signed agreements',
   [PermissionKey.ActivitiesList]: 'List the visit and call reports of a lead in the caller’s scope',
   [PermissionKey.ActivitiesRead]:
     'View a report and download its attachments in the caller’s scope',

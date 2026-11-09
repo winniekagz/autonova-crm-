@@ -176,7 +176,10 @@ export class LeadsRepository {
     const [rows, total] = await Promise.all([
       this.prisma.leadStageHistory.findMany({
         where: { leadId: id },
-        include: { actor: { select: { fullName: true } } },
+        include: {
+          actor: { select: { fullName: true } },
+          qualification: { select: { score: true } },
+        },
         orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -196,6 +199,8 @@ export class LeadsRepository {
         disqualificationReason: row.disqualificationReason,
         revisitOn: row.revisitOn?.toISOString().slice(0, 10) ?? null,
         source: row.source,
+        qualificationScore: row.qualification?.score ?? null,
+        qualificationOverride: row.qualificationOverride,
       })),
       total,
       page,

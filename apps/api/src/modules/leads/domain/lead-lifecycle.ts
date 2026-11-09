@@ -3,6 +3,7 @@ import { LeadDisqualificationReason, LeadStage } from '@autonova/enums';
 export type LeadLifecycleErrorCode =
   | 'INVALID_STAGE_TRANSITION'
   | 'QUALIFICATION_NOTE_REQUIRED'
+  | 'USE_QUALIFY_ENDPOINT'
   | 'LOST_REASON_REQUIRED'
   | 'INVALID_DISQUALIFICATION_REASON'
   | 'REVISIT_DATE_REQUIRED'
@@ -37,9 +38,10 @@ export function validateLeadTransition(
   reason?: string,
 ): LeadLifecycleResult {
   if (!canTransitionLead(from, to)) return { ok: false, code: 'INVALID_STAGE_TRANSITION' };
-  if (to === LeadStage.Qualified && !reason?.trim()) {
-    return { ok: false, code: 'QUALIFICATION_NOTE_REQUIRED' };
-  }
+  // Qualified is reached only through POST /leads/:id/qualify, which enforces the BANT pass mark and the
+  // Director override. The generic transition must never be a way around it.
+  if (to === LeadStage.Qualified) return { ok: false, code: 'USE_QUALIFY_ENDPOINT' };
+  void reason;
   return { ok: true };
 }
 
