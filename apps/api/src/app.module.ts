@@ -13,6 +13,12 @@ import { ActivitiesModule } from './modules/activities/activities.module.js';
 import { StorageModule } from './modules/storage/storage.module.js';
 import { CompaniesModule } from './modules/companies/companies.module.js';
 import { LeadsModule } from './modules/leads/leads.module.js';
+import { QualificationModule } from './modules/qualification/qualification.module.js';
+import { QuotationsModule } from './modules/quotations/quotations.module.js';
+import { PipelineModule } from './modules/pipeline/pipeline.module.js';
+import { ClientsModule } from './modules/clients/clients.module.js';
+import { TorsModule } from './modules/tors/tors.module.js';
+import { SettingsModule } from './modules/settings/settings.module.js';
 import { EmailModule } from './modules/email/email.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
@@ -56,7 +62,13 @@ import { PrismaModule } from './prisma/prisma.module.js';
     UsersModule,
     StorageModule,
     CompaniesModule,
+    SettingsModule,
     LeadsModule,
+    QualificationModule,
+    TorsModule,
+    QuotationsModule,
+    ClientsModule,
+    PipelineModule,
     ActivitiesModule,
     EmailModule,
     HealthModule,
