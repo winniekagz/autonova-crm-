@@ -55,9 +55,7 @@ describe('CompanyPicker', () => {
   it('says so when nothing matches, and shows a safe error when the search fails', async () => {
     mockApi({ 'GET /companies': () => pageOf([]) });
     const { unmount } = renderAs(BD_COMPANIES, <Harness />);
-    expect(
-      await screen.findByText(/No companies yet\. Add one from the Companies page\./),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/No companies yet\./)).toBeInTheDocument();
     unmount();
     mockApi({ 'GET /companies': () => apiError(500, 'INTERNAL_ERROR', 'sql exploded') });
     renderAs(BD_COMPANIES, <Harness />);
@@ -71,5 +69,80 @@ describe('CompanyPicker', () => {
     renderAs(NO_COMPANY_ACCESS, <Harness />);
     expect(screen.queryByLabelText('Company')).not.toBeInTheDocument();
     expect(calls).toHaveLength(0);
+  });
+
+  it('creates a company from the typed name, selects it, and sends only the name', async () => {
+    const user = userEvent.setup();
+    const { calls } = mockApi({
+      'GET /companies': () => pageOf([]),
+      'POST /companies': () => ({
+        status: 201,
+        body: makeCompany({ id: 'co-new', name: 'Brand New Ltd' }),
+      }),
+    });
+    renderAs(BD_COMPANIES, <Harness />);
+    await user.type(screen.getByLabelText('Find a company'), 'Brand New Ltd');
+    await user.click(
+      await screen.findByRole(
+        'button',
+        { name: 'Create “Brand New Ltd” as a new company' },
+        { timeout: 3000 },
+      ),
+    );
+    await waitFor(
+      () => expect(screen.getByLabelText('chosen')).toHaveTextContent('Brand New Ltd'),
+      { timeout: 3000 },
+    );
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ name: 'Brand New Ltd' });
+  });
+
+  it('does not offer to create a company that already matches exactly, or without permission', async () => {
+    const user = userEvent.setup();
+    mockApi({ 'GET /companies': () => pageOf([makeCompany()]) });
+    const { unmount } = renderAs(BD_COMPANIES, <Harness />);
+    await user.type(screen.getByLabelText('Find a company'), 'otieno logistics');
+    await screen.findByRole('option', { name: 'Otieno Logistics' });
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(screen.queryByRole('button', { name: /as a new company/ })).not.toBeInTheDocument();
+    unmount();
+    mockApi({ 'GET /companies': () => pageOf([]) });
+    renderAs({ ...BD_COMPANIES, permissions: ['companies:list', 'companies:read'] }, <Harness />);
+    await user.type(screen.getByLabelText('Find a company'), 'Zeta Co');
+    await screen.findByText(/No company matches that search/, undefined, { timeout: 3000 });
+    expect(screen.queryByRole('button', { name: /as a new company/ })).not.toBeInTheDocument();
+  });
+
+  it('asks before creating a company whose name looks like an existing one', async () => {
+    const user = userEvent.setup();
+    let attempts = 0;
+    const { calls } = mockApi({
+      'GET /companies': () => pageOf([]),
+      'POST /companies': () => {
+        attempts += 1;
+        return attempts === 1
+          ? apiError(409, 'COMPANY_DUPLICATE_SUSPECTED')
+          : { status: 201, body: makeCompany({ id: 'co-new', name: 'Acme' }) };
+      },
+    });
+    renderAs(BD_COMPANIES, <Harness />);
+    await user.type(screen.getByLabelText('Find a company'), 'Acme');
+    await user.click(
+      await screen.findByRole(
+        'button',
+        { name: 'Create “Acme” as a new company' },
+        { timeout: 3000 },
+      ),
+    );
+    expect(
+      await screen.findByText(/very similar name already exists/, undefined, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Create “Acme” anyway' }));
+    await waitFor(() => expect(screen.getByLabelText('chosen')).toHaveTextContent('Acme'), {
+      timeout: 3000,
+    });
+    expect(calls.filter((c) => c.method === 'POST').map((c) => c.body)).toEqual([
+      { name: 'Acme' },
+      { name: 'Acme', acknowledgeDuplicates: true },
+    ]);
   });
 });

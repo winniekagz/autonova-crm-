@@ -1,5 +1,6 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiResponse } from '@nestjs/swagger';
+import { ContactRole, enumValues } from '@autonova/enums';
 import {
   ApiErrors,
   RATE_LIMITED_ERROR,
@@ -116,6 +117,7 @@ const contactSchema: SchemaObject = {
     'email',
     'whatsappNumber',
     'isDecisionMaker',
+    'role',
     'archived',
     'createdAt',
     'updatedAt',
@@ -129,6 +131,7 @@ const contactSchema: SchemaObject = {
     email: { type: 'string', format: 'email', nullable: true },
     whatsappNumber: { type: 'string', nullable: true },
     isDecisionMaker: { type: 'boolean' },
+    role: { type: 'string', enum: [...enumValues(ContactRole)], nullable: true },
     archived: { type: 'boolean' },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
@@ -283,6 +286,7 @@ export const contactBodySchema: SchemaObject = {
     email: { type: 'string', format: 'email' },
     whatsappNumber: { type: 'string', maxLength: 40 },
     isDecisionMaker: { type: 'boolean' },
+    role: { type: 'string', enum: [...enumValues(ContactRole)], nullable: true },
   },
 };
 

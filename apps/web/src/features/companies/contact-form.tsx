@@ -1,11 +1,13 @@
 'use client';
 
 import type { ContactDto } from '@autonova/contracts';
+import { CONTACT_ROLE_LABELS, ContactRole, enumValues } from '@autonova/enums';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { SelectField } from '@/components/ui/select-field';
 import { TextField } from '@/components/ui/text-field';
 import { applyServerFieldErrors } from '@/lib/form-errors';
 import { useSaveContact } from './companies.queries';
@@ -20,7 +22,7 @@ import { blankContact, contactToForm, toContactRequestBody } from './contact-inp
 interface ContactFormProps {
   companyId: string;
   contact?: ContactDto;
-  onDone: () => void;
+  onDone: (saved?: ContactDto) => void;
 }
 
 /** Add a contact to a company, or edit one. The company cannot be changed: a contact belongs to one company. */
@@ -41,8 +43,8 @@ export function ContactForm({ companyId, contact, onDone }: ContactFormProps) {
     if (save.isPending) return;
     setFormError(null);
     try {
-      await save.mutateAsync(toContactRequestBody(values));
-      onDone();
+      const saved = await save.mutateAsync(toContactRequestBody(values));
+      onDone(saved);
     } catch (cause) {
       if (!applyServerFieldErrors(cause, setError, CONTACT_FORM_FIELDS)) {
         setFormError(companyErrorText(cause));
@@ -69,6 +71,14 @@ export function ContactForm({ companyId, contact, onDone }: ContactFormProps) {
         error={errors.name?.message}
         {...register('name')}
       />
+      <SelectField label="Role at the company" {...register('role')}>
+        <option value="">Not set</option>
+        {enumValues(ContactRole).map((role) => (
+          <option key={role} value={role}>
+            {CONTACT_ROLE_LABELS[role]}
+          </option>
+        ))}
+      </SelectField>
       <TextField label="Job title" error={errors.jobTitle?.message} {...register('jobTitle')} />
       <TextField label="Phone" type="tel" error={errors.phone?.message} {...register('phone')} />
       <TextField label="Email" type="email" error={errors.email?.message} {...register('email')} />
@@ -86,7 +96,7 @@ export function ContactForm({ companyId, contact, onDone }: ContactFormProps) {
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Saving…' : contact ? 'Save contact' : 'Add contact'}
         </Button>
-        <Button type="button" variant="secondary" onClick={onDone}>
+        <Button type="button" variant="secondary" onClick={() => onDone()}>
           Cancel
         </Button>
       </div>

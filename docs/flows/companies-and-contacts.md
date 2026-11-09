@@ -22,7 +22,7 @@
 ## Data model
 
 - `companies`: name, `name_normalized`, optional KRA PIN (format `A123456789B`, partial-unique among non-archived rows), location, industry (enum), staff count, branch count, website, up to 10 social links (`text[]`), archive columns, created/updated-by, `needs_review`.
-- `contacts`: company (immutable), name, job title, phone (+ `phone_normalized`), email (lower-case, CHECKed), WhatsApp, `is_decision_maker`, archive timestamp. Several decision-makers per company are allowed.
+- `contacts`: company (immutable), name, job title, optional **role** (Owner, Manager, Finance, Technical, Other; migration `20261109170000_contact_role`, existing contacts stay unset), phone (+ `phone_normalized`), email (lower-case, CHECKed), WhatsApp, `is_decision_maker`, archive timestamp. Several decision-makers per company are allowed.
 - `lead_contacts`: lead ↔ additional contact. `leads.company_id` and `leads.primary_contact_id` are new nullable foreign keys; a CHECK forbids a primary contact without a company.
 - Database triggers keep the cross-table rules true even for code that bypasses the API: a contact's company never changes; a lead's primary and additional contacts always belong to the lead's company.
 - `leads.company_name` is kept as the text captured at entry. Once a lead is linked, the company record is the only source of the name (the lead DTO, search, reminder emails and the duplicate panel all read it from there); the text column is not written any more.
@@ -60,3 +60,14 @@ Routes `/companies`, `/companies/new`, `/companies/{id}`, `/companies/{id}/edit`
 - Reassigning a lead's owner is not built; when it is, company visibility will follow automatically (it is derived from lead ownership).
 - Companies cannot yet be linked to a client account (SOW §4.7); the `company_id` foreign key is the hook.
 - Two simultaneous requests can both pass the name warning (it is a warning, not a uniqueness rule); the KRA PIN rule is a database unique index and cannot race.
+
+## Setting up a lead's company and contacts (web flow)
+
+Quick-add stays short. Company and contacts are completed on the lead page, where the work happens, instead of in a wizard:
+
+1. **Quick-add** a lead. In the company picker, type a name: pick a match, or choose **Create “name” as a new company**. Only the name is saved; a similar existing name asks for confirmation, and a matching KRA PIN can never be bypassed.
+2. The user lands on the **lead page**, whose **Next steps** card lists what is still missing (company, primary contact, follow-up) and disappears once the lead is set up.
+3. **Company and contacts → Change** lets the user pick the company and add contacts in place (**Add a contact**, with role). A contact added there is saved on the company and selected for the deal.
+4. **Complete company details** links to the company form for KRA PIN, location, industry and size.
+
+An individual prospect with no company remains valid.

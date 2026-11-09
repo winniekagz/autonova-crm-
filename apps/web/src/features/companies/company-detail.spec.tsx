@@ -131,6 +131,38 @@ describe('CompanyDetail', () => {
     expect(screen.queryByRole('form', { name: 'Add contact' })).not.toBeInTheDocument();
   });
 
+  it('shows each contact’s role and sends the chosen role, or null when cleared', async () => {
+    const user = userEvent.setup();
+    let contacts = [
+      makeContact(),
+      makeContact({ id: 'ct-2', name: 'Brian Mwangi', role: 'FINANCE', isDecisionMaker: false }),
+    ];
+    const { calls } = mockApi(
+      routes({
+        'GET /companies/co-1/contacts': () => pageOf(contacts),
+        'PATCH /contacts/ct-2': () => {
+          contacts = [
+            contacts[0] ?? makeContact(),
+            makeContact({ id: 'ct-2', name: 'Brian Mwangi', role: null }),
+          ];
+          return { body: contacts[1] };
+        },
+      }),
+    );
+    renderAs(BD_COMPANIES, <CompanyDetail id="co-1" />);
+    await screen.findByText('Brian Mwangi');
+    expect(screen.getByText('Owner')).toBeInTheDocument();
+    expect(screen.getByText('Finance')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Edit Brian Mwangi' }));
+    const form = screen.getByRole('form', { name: 'Edit contact' });
+    const select = within(form).getByLabelText('Role at the company');
+    expect(select).toHaveValue('FINANCE');
+    await user.selectOptions(select, '');
+    await user.click(within(form).getByRole('button', { name: 'Save contact' }));
+    expect(await screen.findByText('Contact saved.')).toBeInTheDocument();
+    expect(calls.find((c) => c.method === 'PATCH')?.body).toMatchObject({ role: null });
+  });
+
   it('validates a contact before sending and shows server errors on the form', async () => {
     const user = userEvent.setup();
     const { calls } = mockApi(

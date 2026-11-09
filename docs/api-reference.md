@@ -223,7 +223,7 @@ the Swagger operation itself.
 | `POST` | `/api/v1/companies/{id}/archive` | `companies:archive` | Archives a company with no open leads; releases its KRA PIN. |
 | `POST` | `/api/v1/companies/{id}/restore` | `companies:archive` | Restores an archived company if its KRA PIN is still free. |
 | `GET` | `/api/v1/companies/{id}/leads` | `companies:read`, `leads:list` | Paginated leads of the company (Directors all, others their own). |
-| `GET` | `/api/v1/companies/{companyId}/contacts` | `companies:read` | Paginated contacts, decision-makers first. |
+| `GET` | `/api/v1/companies/{companyId}/contacts` | `companies:read` | Paginated contacts, decision-makers first. Each carries an optional `role` (`OWNER`, `MANAGER`, `FINANCE`, `TECHNICAL`, `OTHER`). |
 | `POST` | `/api/v1/companies/{companyId}/contacts` | `companies:create` | Adds a contact to a visible, non-archived company. |
 | `GET` | `/api/v1/contacts/{id}` | `companies:read` | Reads a contact whose company the caller may see. |
 | `PATCH` | `/api/v1/contacts/{id}` | `companies:update` | Updates a contact; its company cannot change. |

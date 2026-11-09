@@ -33,6 +33,7 @@ const contact = (id: string, name: string) => ({
   email: null,
   whatsappNumber: null,
   isDecisionMaker: false,
+  role: null,
   archived: false,
   createdAt: 't',
   updatedAt: 't',

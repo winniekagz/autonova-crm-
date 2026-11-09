@@ -122,6 +122,24 @@ export const CompanyIndustry = {
 } as const;
 export type CompanyIndustry = (typeof CompanyIndustry)[keyof typeof CompanyIndustry];
 
+/** The part a person plays at a company. Optional: it describes the person, not their job title. */
+export const ContactRole = {
+  Owner: 'OWNER',
+  Manager: 'MANAGER',
+  Finance: 'FINANCE',
+  Technical: 'TECHNICAL',
+  Other: 'OTHER',
+} as const;
+export type ContactRole = (typeof ContactRole)[keyof typeof ContactRole];
+
+export const CONTACT_ROLE_LABELS: Record<ContactRole, string> = {
+  OWNER: 'Owner',
+  MANAGER: 'Manager',
+  FINANCE: 'Finance',
+  TECHNICAL: 'Technical',
+  OTHER: 'Other',
+};
+
 /** PRD §4.1 product catalogue. Values are stable keys; show people `PRODUCT_INTEREST_LABELS`. */
 export const ProductInterest = {
   RetailPos: 'RETAIL_POS',

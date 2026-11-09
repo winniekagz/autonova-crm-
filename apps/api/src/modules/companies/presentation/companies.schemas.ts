@@ -1,4 +1,4 @@
-import { CompanyIndustry, enumValues } from '@autonova/enums';
+import { CompanyIndustry, ContactRole, enumValues } from '@autonova/enums';
 import { paginationQuerySchema, uuidSchema } from '@autonova/validation';
 import { z } from 'zod';
 import { isValidKraPin, normalizeKraPin } from '../domain/company-rules.js';
@@ -70,6 +70,7 @@ const contactFields = {
   email: z.union([z.email().max(254), z.literal('')]).optional(),
   whatsappNumber: optionalText(40),
   isDecisionMaker: z.boolean(),
+  role: z.enum(enumValues(ContactRole)).nullable().optional(),
 };
 
 export const createContactSchema = z.object(contactFields).strict();

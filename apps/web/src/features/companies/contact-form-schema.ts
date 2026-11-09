@@ -1,3 +1,4 @@
+import { ContactRole, enumValues } from '@autonova/enums';
 import { z } from 'zod';
 
 /** The early check for the contact form; the API validates everything again (`companies.schemas.ts`). */
@@ -26,6 +27,7 @@ export const contactFormSchema = z.object({
     ),
   whatsappNumber: optionalText(40, 'The WhatsApp number'),
   isDecisionMaker: z.boolean(),
+  role: z.enum(['', ...enumValues(ContactRole)]),
 });
 
 export type ContactFormValues = z.infer<typeof contactFormSchema>;
@@ -36,4 +38,5 @@ export const CONTACT_FORM_FIELDS = [
   'email',
   'whatsappNumber',
   'isDecisionMaker',
+  'role',
 ] as const;

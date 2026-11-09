@@ -78,7 +78,7 @@ describe('LeadRelationships', () => {
       'PATCH /leads/l-1/relationships': () => ({ body: linked }),
     });
     renderAs(BD_COMPANIES, <LeadRelationships lead={unlinked} />);
-    await user.click(screen.getByRole('button', { name: 'Link a company' }));
+    await user.click(screen.getByRole('button', { name: 'Link or create a company' }));
     const company = await screen.findByRole('option', { name: 'Otieno Logistics' });
     await user.selectOptions(screen.getByLabelText('Company'), company);
     await user.selectOptions(await screen.findByLabelText('Primary contact'), 'ct-1');

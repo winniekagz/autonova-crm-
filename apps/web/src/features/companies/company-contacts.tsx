@@ -1,7 +1,7 @@
 'use client';
 
 import type { CompanyDto, ContactDto } from '@autonova/contracts';
-import { PermissionKey } from '@autonova/enums';
+import { CONTACT_ROLE_LABELS, PermissionKey } from '@autonova/enums';
 import { useState } from 'react';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,11 @@ function ContactRow({
       <div>
         <p className="font-medium text-ink">
           {contact.name}
+          {contact.role ? (
+            <span className="ml-2 rounded-full border border-line bg-canvas px-2 py-0.5 text-xs font-medium text-ink">
+              {CONTACT_ROLE_LABELS[contact.role]}
+            </span>
+          ) : null}
           {contact.isDecisionMaker ? (
             <span className="ml-2 rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success">
               Decision-maker

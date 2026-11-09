@@ -2,6 +2,7 @@ import type {
   ActivityType,
   AttachmentCategory,
   CompanyIndustry,
+  ContactRole,
   LeadDisqualificationReason,
   LeadReminderReason,
   LeadReminderStatus,
@@ -356,6 +357,7 @@ export interface ContactDto {
   email: string | null;
   whatsappNumber: string | null;
   isDecisionMaker: boolean;
+  role: ContactRole | null;
   archived: boolean;
   createdAt: string;
   updatedAt: string;
@@ -368,6 +370,8 @@ export interface ContactInput {
   email?: string;
   whatsappNumber?: string;
   isDecisionMaker: boolean;
+  /** Omit or null for no role. On an update, null clears an existing role. */
+  role?: ContactRole | null;
 }
 
 /** A lead as shown on its company page: only fields a company screen needs. */

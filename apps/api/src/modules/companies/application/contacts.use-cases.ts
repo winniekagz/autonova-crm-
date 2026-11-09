@@ -28,6 +28,7 @@ const auditFields = (c: {
   name: string;
   jobTitle: string | null;
   isDecisionMaker: boolean;
+  role: string | null;
   phone: string | null;
   email: string | null;
   whatsappNumber: string | null;
@@ -35,6 +36,7 @@ const auditFields = (c: {
   name: c.name,
   jobTitle: c.jobTitle,
   isDecisionMaker: c.isDecisionMaker,
+  role: c.role,
   // Contact details are personal data (docs/06): the audit trail records that they changed, not the values.
   phoneSet: c.phone !== null,
   emailSet: c.email !== null,

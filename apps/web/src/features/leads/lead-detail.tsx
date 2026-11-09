@@ -10,6 +10,7 @@ import { TorWorkspace } from '@/features/sales/tor-workspace';
 import { formatNairobiDateTime } from '@/lib/nairobi-time';
 import { labelFor, productLabel } from './lead-format';
 import { LeadLifecycle } from './lead-lifecycle';
+import { LeadNextSteps } from './lead-next-steps';
 import { LeadRelationships } from './lead-relationships';
 import { LeadReminders } from './lead-reminders';
 import { useLead } from './use-lead';
@@ -69,6 +70,7 @@ export function LeadDetail({ id }: { id: string }) {
         </div>
       </dl>
       <ActivityTimeline lead={lead} />
+      <LeadNextSteps lead={lead} />
       <LeadRelationships lead={lead} />
       <LeadReminders lead={lead} />
       <QualificationPanel lead={lead} />

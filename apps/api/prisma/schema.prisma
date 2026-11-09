@@ -361,20 +361,21 @@ model Company {
 
 /// A person at one company. Phone and email are not unique: colleagues share switchboards and inboxes.
 model Contact {
-  id              String    @id @default(uuid(7)) @db.Uuid
-  companyId       String    @map("company_id") @db.Uuid
+  id              String       @id @default(uuid(7)) @db.Uuid
+  companyId       String       @map("company_id") @db.Uuid
   name            String
-  jobTitle        String?   @map("job_title")
+  jobTitle        String?      @map("job_title")
   phone           String?
-  phoneNormalized String?   @map("phone_normalized")
+  phoneNormalized String?      @map("phone_normalized")
   email           String?
-  whatsappNumber  String?   @map("whatsapp_number")
-  isDecisionMaker Boolean   @default(false) @map("is_decision_maker")
-  archivedAt      DateTime? @map("archived_at") @db.Timestamptz(3)
-  createdByUserId String    @map("created_by_user_id") @db.Uuid
-  updatedByUserId String    @map("updated_by_user_id") @db.Uuid
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  whatsappNumber  String?      @map("whatsapp_number")
+  isDecisionMaker Boolean      @default(false) @map("is_decision_maker")
+  role            ContactRole?
+  archivedAt      DateTime?    @map("archived_at") @db.Timestamptz(3)
+  createdByUserId String       @map("created_by_user_id") @db.Uuid
+  updatedByUserId String       @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   company     Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
   createdBy   User               @relation("ContactCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
@@ -385,6 +386,14 @@ model Contact {
 
   @@index([companyId, archivedAt])
   @@map("contacts")
+}
+
+enum ContactRole {
+  OWNER
+  MANAGER
+  FINANCE
+  TECHNICAL
+  OTHER
 }
 
 /// Other contacts involved in a deal. The primary contact lives on leads.primary_contact_id.

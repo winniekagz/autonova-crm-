@@ -50,6 +50,7 @@ export const makeContact = (over: Partial<ContactDto> = {}): ContactDto => ({
   email: 'achieng@otieno.test',
   whatsappNumber: null,
   isDecisionMaker: true,
+  role: 'OWNER',
   archived: false,
   createdAt: '2026-11-01T08:00:00.000Z',
   updatedAt: '2026-11-01T08:00:00.000Z',

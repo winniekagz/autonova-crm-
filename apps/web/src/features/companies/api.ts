@@ -56,6 +56,7 @@ function parseContact(value: unknown): ContactDto {
     !orNull(value.email, 'string') ||
     !orNull(value.whatsappNumber, 'string') ||
     typeof value.isDecisionMaker !== 'boolean' ||
+    !orNull(value.role, 'string') ||
     typeof value.archived !== 'boolean' ||
     typeof value.createdAt !== 'string' ||
     typeof value.updatedAt !== 'string'

@@ -82,6 +82,14 @@ describe('contact validation', () => {
     ).toBe(true);
   });
 
+  it('accepts a known contact role or none, and refuses anything else', () => {
+    const base = { name: 'W', isDecisionMaker: false };
+    expect(createContactSchema.safeParse({ ...base, role: 'FINANCE' }).success).toBe(true);
+    expect(createContactSchema.safeParse({ ...base, role: null }).success).toBe(true);
+    expect(createContactSchema.safeParse({ ...base, role: 'CEO' }).success).toBe(false);
+    expect(updateContactSchema.safeParse({ role: null }).success).toBe(true);
+  });
+
   it('cannot move a contact to another company or set system fields', () => {
     expect(
       updateContactSchema.safeParse({ companyId: '0192f1a0-0000-7000-8000-000000000001' }).success,

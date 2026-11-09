@@ -1,12 +1,16 @@
 'use client';
 
 import { PermissionKey } from '@autonova/enums';
+import { useState } from 'react';
+import type { ContactDto } from '@autonova/contracts';
 import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { SelectField } from '@/components/ui/select-field';
 import { useAuth } from '@/features/auth/auth-context';
 import { can } from '@/features/auth/permissions';
 import { useCompanyContacts } from './companies.queries';
 import { companyErrorText } from './company-format';
+import { ContactForm } from './contact-form';
 
 export interface ContactSelection {
   primaryContactId: string | null;
@@ -24,6 +28,8 @@ export function LeadContactPicker({ companyId, value, onChange }: LeadContactPic
   const { me } = useAuth();
   const allowed = can(me, PermissionKey.CompaniesRead);
   const contacts = useCompanyContacts(companyId, false, allowed);
+  const [adding, setAdding] = useState(false);
+  const canAdd = can(me, PermissionKey.CompaniesCreate);
   if (!allowed) return null;
   if (contacts.isLoading) {
     return (
@@ -34,11 +40,31 @@ export function LeadContactPicker({ companyId, value, onChange }: LeadContactPic
   }
   if (contacts.isError) return <Alert tone="error">{companyErrorText(contacts.error)}</Alert>;
   const items = contacts.data?.items ?? [];
+  // A contact added here is saved on the company and selected for this deal straight away.
+  const added = (saved: ContactDto | undefined) => {
+    setAdding(false);
+    if (!saved) return;
+    if (value.primaryContactId === null) onChange({ ...value, primaryContactId: saved.id });
+    else onChange({ ...value, additionalContactIds: [...value.additionalContactIds, saved.id] });
+  };
+  const addControl = adding ? (
+    <ContactForm companyId={companyId} onDone={added} />
+  ) : canAdd ? (
+    <Button type="button" variant="secondary" onClick={() => setAdding(true)}>
+      Add a contact
+    </Button>
+  ) : null;
   if (items.length === 0) {
     return (
-      <p className="text-sm text-ink-soft">
-        This company has no contacts yet. Add them on the company page, then choose them here.
-      </p>
+      <div className="space-y-2">
+        <p className="text-sm text-ink-soft">
+          This company has no contacts yet.
+          {canAdd
+            ? ' Add the owner, manager or finance person.'
+            : ' Ask someone with access to add them.'}
+        </p>
+        {addControl}
+      </div>
     );
   }
   const others = items.filter((contact) => contact.id !== value.primaryContactId);
@@ -91,6 +117,7 @@ export function LeadContactPicker({ companyId, value, onChange }: LeadContactPic
           </div>
         </fieldset>
       ) : null}
+      {addControl}
     </div>
   );
 }

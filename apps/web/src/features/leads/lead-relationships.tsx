@@ -103,7 +103,7 @@ export function LeadRelationships({ lead }: { lead: LeadDto }) {
               setEditing(true);
             }}
           >
-            {lead.company ? 'Change' : 'Link a company'}
+            {lead.company ? 'Change' : 'Link or create a company'}
           </Button>
         ) : null}
       </div>
@@ -141,8 +141,18 @@ export function LeadRelationships({ lead }: { lead: LeadDto }) {
               <span className="font-medium">{lead.company.name}</span>
             )}
           </p>
+          {canOpen ? (
+            <p className="mt-1">
+              <Link className="text-primary underline" href={`/companies/${lead.company.id}/edit`}>
+                Complete company details (KRA PIN, location, industry, size)
+              </Link>
+            </p>
+          ) : null}
           {contacts.length === 0 ? (
-            <p className="mt-2 text-ink-soft">No contacts linked to this deal yet.</p>
+            <p className="mt-2 text-ink-soft">
+              No contacts linked to this deal yet.
+              {canEdit ? ' Choose Change to add or select the people you are dealing with.' : ''}
+            </p>
           ) : (
             <ul className="mt-2 space-y-1">
               {contacts.map((contact) => (
