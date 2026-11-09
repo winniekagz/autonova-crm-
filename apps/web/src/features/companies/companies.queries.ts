@@ -113,6 +113,8 @@ function useAfterContactWrite(companyId: string) {
     void queryClient.invalidateQueries({ queryKey: companiesKeys.allContacts(companyId) });
     void queryClient.invalidateQueries({ queryKey: companiesKeys.detail(companyId) });
     void queryClient.invalidateQueries({ queryKey: companiesKeys.lists() });
+    // A lead shows its contacts' names and titles.
+    void queryClient.invalidateQueries({ queryKey: leadsKeys.all });
   };
 }
 

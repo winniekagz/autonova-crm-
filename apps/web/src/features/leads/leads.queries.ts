@@ -1,7 +1,13 @@
 'use client';
 
 import type { LeadDto, LeadDuplicateCheckRequest, LeadSaveRequest } from '@autonova/contracts';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import { useAuthedRequest } from '@/features/auth/use-authed-request';
 import * as leadsApi from './api';
 
@@ -14,6 +20,18 @@ export const leadsKeys = {
   history: (id: string) => ['leads', 'history', id] as const,
   reminders: (id: string) => ['leads', 'reminders', id] as const,
 };
+
+/**
+ * Data derived from leads that lives under other features' keys: the pipeline summary (counts and
+ * value per stage) and companies (each shows its lead count). Plain prefixes, because importing
+ * those features' key factories here would make an import cycle (they import `leadsKeys`).
+ */
+function invalidateLeadDerivedData(queryClient: QueryClient) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: ['sales', 'pipeline'] }),
+    queryClient.invalidateQueries({ queryKey: ['companies'] }),
+  ]);
+}
 
 export function useLeadsList(search: string, page: number, enabled: boolean) {
   const request = useAuthedRequest();
@@ -73,6 +91,7 @@ function useLifecycleMutation<TBody>(
       queryClient.setQueryData(leadsKeys.detail(id), saved);
       void queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
       void queryClient.invalidateQueries({ queryKey: leadsKeys.history(id) });
+      void invalidateLeadDerivedData(queryClient);
     },
   });
 }
@@ -106,6 +125,8 @@ export function useSaveLead(lead: LeadDto | undefined) {
       queryClient.setQueryData(leadsKeys.detail(saved.id), saved);
       void queryClient.invalidateQueries({ queryKey: leadsKeys.lists() });
       void queryClient.invalidateQueries({ queryKey: leadsKeys.reminders(saved.id) });
+      void queryClient.invalidateQueries({ queryKey: leadsKeys.history(saved.id) });
+      void invalidateLeadDerivedData(queryClient);
     },
   });
 }
