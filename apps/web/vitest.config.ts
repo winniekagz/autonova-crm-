@@ -6,6 +6,6 @@ export default defineConfig({
     include: ['src/**/*.spec.{ts,tsx}'],
     // Component specs opt in to jsdom with `// @vitest-environment jsdom`; plain logic specs stay on node.
     environment: 'node',
-    setupFiles: ['./vitest.setup.ts'],
+    setupFiles: ['./vitest.setup.tsx'],
   },
 });

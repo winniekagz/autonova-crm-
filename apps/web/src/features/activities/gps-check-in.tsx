@@ -1,6 +1,7 @@
 'use client';
 
 import { Alert } from '@/components/ui/alert';
+import { LocationMap } from '@/components/map/location-map';
 import { Button } from '@/components/ui/button';
 import { useGeolocation } from '@/hooks/use-geolocation';
 import type { GpsFix } from './activity-input';
@@ -31,9 +32,16 @@ export function GpsCheckIn({ value, onChange }: GpsCheckInProps) {
         is only requested when you press the button, and is saved with this report only.
       </p>
       {value ? (
-        <p className="text-sm">
-          Checked in at {value.latitude.toFixed(5)}, {value.longitude.toFixed(5)}
-        </p>
+        <>
+          <p className="text-sm">
+            Checked in at {value.latitude.toFixed(5)}, {value.longitude.toFixed(5)}
+          </p>
+          <LocationMap
+            latitude={value.latitude}
+            longitude={value.longitude}
+            label="Map of the saved check-in"
+          />
+        </>
       ) : null}
       {state.status === 'locating' ? (
         <p role="status" className="text-sm text-ink-soft">
@@ -87,6 +95,12 @@ function GpsResult({
         Found you at {fix.latitude.toFixed(5)}, {fix.longitude.toFixed(5)} (within about{' '}
         {Math.round(state.accuracyMetres)} m).
       </p>
+      <LocationMap
+        latitude={fix.latitude}
+        longitude={fix.longitude}
+        accuracyMetres={state.accuracyMetres}
+        label="Map of the position found"
+      />
       <Button type="button" onClick={() => onAccept(fix)}>
         Use this location
       </Button>

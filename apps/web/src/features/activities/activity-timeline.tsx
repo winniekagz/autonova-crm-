@@ -12,6 +12,7 @@ import { formatNairobiDateTime } from '@/lib/nairobi-time';
 import { useCompanyContacts } from '@/features/companies/companies.queries';
 import { TIMELINE_PAGE_SIZE, useActivities, useArchiveActivity } from './activities.queries';
 import { ActivityForm } from './activity-form';
+import { ActivityGpsMap } from './activity-gps-map';
 import { ActivityHold } from './activity-hold';
 import { AttendeeLink } from './attendee-link';
 import { ACTIVITY_TYPE_LABELS, activityErrorText } from './activity-format';
@@ -85,10 +86,7 @@ function Entry({
           <Field label="Check-in" value="Cleared under the retention policy." />
         ) : null}
         {activity.gps ? (
-          <Field
-            label="Check-in"
-            value={`${activity.gps.latitude.toFixed(5)}, ${activity.gps.longitude.toFixed(5)}`}
-          />
+          <ActivityGpsMap latitude={activity.gps.latitude} longitude={activity.gps.longitude} />
         ) : null}
       </dl>
       {canChange ? <AttendeeLink leadId={lead.id} activity={activity} contacts={contacts} /> : null}

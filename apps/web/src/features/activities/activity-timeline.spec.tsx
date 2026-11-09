@@ -43,6 +43,7 @@ const contacts = {
         email: null,
         whatsappNumber: null,
         isDecisionMaker: true,
+        role: null,
         archived: false,
         createdAt: 't',
         updatedAt: 't',
@@ -91,6 +92,24 @@ describe('ActivityTimeline', () => {
     renderAs(BD_REPORTS, <ActivityTimeline lead={lead} />);
     expect(await screen.findByText('-1.29207, 36.82195')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Attachments (3)' })).toBeInTheDocument();
+  });
+
+  it('shows a saved check-in map only after Show map is pressed', async () => {
+    const user = userEvent.setup();
+    mockApi({
+      [LIST]: () =>
+        reportsPage([
+          makeActivity({ type: 'VISIT', gps: { latitude: -1.29207, longitude: 36.82195 } }),
+        ]),
+    });
+    renderAs(BD_REPORTS, <ActivityTimeline lead={lead} />);
+    await screen.findByText('-1.29207, 36.82195');
+    expect(screen.queryByRole('img', { name: /Map of the check-in/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Show map' }));
+    const map = screen.getByRole('img', { name: 'Map of the check-in at -1.29207, 36.82195' });
+    expect(map).toHaveAttribute('data-lat', '-1.29207');
+    await user.click(screen.getByRole('button', { name: 'Hide map' }));
+    expect(screen.queryByRole('img', { name: /Map of the check-in/ })).not.toBeInTheDocument();
   });
 
   it('shows loading, then an empty state that explains what to record', async () => {
@@ -423,8 +442,14 @@ describe('ActivityTimeline', () => {
       await user.selectOptions(within(form).getByLabelText('Type'), 'VISIT');
       await user.click(within(form).getByRole('button', { name: 'Check in here' }));
       expect(await within(form).findByText(/within about 18 m/)).toBeInTheDocument();
+      expect(
+        within(form).getByRole('img', { name: 'Map of the position found' }),
+      ).toBeInTheDocument();
       await user.click(within(form).getByRole('button', { name: 'Use this location' }));
       expect(within(form).getByText('Checked in at -1.29207, 36.82195')).toBeInTheDocument();
+      expect(
+        within(form).getByRole('img', { name: 'Map of the saved check-in' }),
+      ).toBeInTheDocument();
       await user.type(within(form).getByLabelText('Discussion'), 'On site');
       await user.click(within(form).getByRole('button', { name: 'Record report' }));
       expect(await screen.findByText('Report recorded.')).toBeInTheDocument();
